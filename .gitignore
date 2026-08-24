@@ -1,0 +1,20 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+.vercel/
+.env
+.env.local
+.env*.local
+*.log
+.DS_Store
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Client-confidential source material — AIM Academy's own documents.
+# Deliberately kept out of git: once committed they live in the history
+# forever, and code review does not need them. Shared over AIM's own channels.
+ATL2026-Discovery Day-Agency Brief.pdf
+ATL2026-Website-Discovery Day-*.docx

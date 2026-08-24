@@ -1,0 +1,16 @@
+{
+  "name": "@atl/qr-render",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

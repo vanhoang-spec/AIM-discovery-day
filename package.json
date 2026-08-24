@@ -1,0 +1,25 @@
+{
+  "name": "atl2026",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AIM Academy — Awaken The Lions 2026: event registration & tracking platform",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test packages/*/test/*.test.js supabase/test/*.test.js",
+    "test:qr": "node --test packages/qr-token/test/*.test.js",
+    "test:db": "node --test supabase/test/*.test.js"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.7"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}
