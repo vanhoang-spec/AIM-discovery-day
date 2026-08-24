@@ -1,0 +1,69 @@
+name: CI
+
+# Runs on every push and pull request. This workflow NEVER deploys —
+# deployment lives in deploy.yml and only runs when a human triggers it.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # The suite runs real Postgres compiled to WASM (PGlite) — no service
+      # container, no database credentials, nothing to provision. Migrations
+      # are applied fresh per test file, so a broken migration fails here.
+      - name: Run test suite
+        run: npm test
+
+  build:
+    name: Build web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Built once; the size report reads that same output rather than
+      # building again. The student bundle is on a congested-4G budget, so a
+      # dependency that pushes /dang-ky past ~120 kB First Load JS should be
+      # visible in the PR, not discovered on event day.
+      - name: Build and report bundle size
+        working-directory: apps/web
+        # A build-time key only. It has to be present because src/lib/qr.js
+        # refuses to fall back to the dev key in production — that guard is
+        # deliberate, and a green build proves it still holds.
+        env:
+          ATL_HMAC_KEY: ci-build-only-key-not-used-for-signing
+        run: |
+          set -o pipefail
+          npx next build 2>&1 | tee build.log
+          {
+            echo "### Bundle sizes"
+            echo '```'
+            grep -E "^[┌├└]|First Load JS" build.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
