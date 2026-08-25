@@ -555,6 +555,21 @@ export default function AdminPage() {
       <header className="admin-head">
         <h1>ATL2026 — Điều khiển</h1>
         <span className="muted">{actor}</span>
+        <button type="button" className="admin-btn" onClick={async () => {
+          // fetch + blob so the Authorization header rides along — a plain
+          // <a href> cannot carry it.
+          const res = await fetch(`/api/admin/export?event=${EVENT_ID}`, {
+            headers: { Authorization: `Bearer ${key}` },
+          });
+          if (!res.ok) return;
+          const blob = await res.blob();
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = (res.headers.get('content-disposition') ?? '')
+            .match(/filename="([^"]+)"/)?.[1] ?? 'ATL2026.xlsx';
+          a.click();
+          URL.revokeObjectURL(a.href);
+        }}>⬇ Excel</button>
         <button type="button" className="admin-btn" onClick={() => {
           localStorage.removeItem(KEY_STORE);
           setKey('');
