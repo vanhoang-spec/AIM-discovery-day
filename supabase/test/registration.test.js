@@ -254,3 +254,51 @@ describe('notification outbox worker protocol', () => {
     assert.ok(done.rows[0].sent_at);
   });
 });
+
+describe('walk-in tại cổng (AC7)', () => {
+  test('registers with NO email: phone is identity, no email ever queued', async () => {
+    const r = await db.query(
+      `select * from register_student(
+         1::smallint, 'Võ Walk In', null, '0977000111', 1::smallint, null,
+         'K60-01', null, null, null, null, null,
+         'general'::registration_type, 'walk_in'::registration_source,
+         true, false, '10.0.0.9'::inet, 'v1', 'vo walk in')`,
+    );
+    assert.equal(r.rows[0].status, 'created');
+    const outbox = await db.query(
+      `select count(*)::int as n from notification_outbox where student_id = $1`,
+      [r.rows[0].student_id],
+    );
+    assert.equal(outbox.rows[0].n, 0, 'không có địa chỉ thì không được xếp email nào');
+    const src = await db.query(
+      `select source from registrations where student_id = $1`, [r.rows[0].student_id]);
+    assert.equal(src.rows[0].source, 'walk_in');
+  });
+
+  test('resubmitting the same phone is the resend flow — same code, no duplicate', async () => {
+    const a = await db.query(
+      `select * from register_student(
+         1::smallint, 'Hà Hai Lần', null, '0977000222', 1::smallint, null,
+         'K60-02', null, null, null, null, null,
+         'general'::registration_type, 'walk_in'::registration_source,
+         true, false, '10.0.0.9'::inet, 'v1', 'ha hai lan')`);
+    const b = await db.query(
+      `select * from register_student(
+         1::smallint, 'Hà Hai Lần', null, '0977000222', 1::smallint, null,
+         'K60-02', null, null, null, null, null,
+         'general'::registration_type, 'walk_in'::registration_source,
+         true, false, '10.0.0.9'::inet, 'v1', 'ha hai lan')`);
+    assert.equal(b.rows[0].status, 'already_registered');
+    assert.equal(b.rows[0].lookup_code, a.rows[0].lookup_code);
+  });
+
+  test('a student with NEITHER email nor phone is refused by the table itself', async () => {
+    await assert.rejects(
+      db.query(
+        `insert into students (seq, lookup_code, full_name, name_search_key)
+         values (999901, 'ZZZ901', 'Không Liên Lạc', 'khong lien lac')`,
+      ),
+      /check|constraint/i,
+    );
+  });
+});

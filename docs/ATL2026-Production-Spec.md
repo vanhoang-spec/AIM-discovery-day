@@ -149,7 +149,9 @@ Nền tảng: `✅` schema `0004_registration.sql` · `✅` form `/dang-ky` · `
 - **AC4** `✅` — Given submit thành công, When trong vòng 1 giây, Then màn hình hiện QR ngay tại chỗ (không chờ email) + mã 6 ký tự in dưới QR + nút "Lưu ảnh mã QR".
 - **AC5** `✅` — Given submit thành công, When server ghi DB xong, Then đẩy **1 email** (QR đính kèm PNG **thật qua cid**, không hotlink — Gmail chặn ảnh remote mặc định) vào `notification_outbox` và **trả response ngay**. Worker `/api/cron/outbox` chạy mỗi phút qua Vercel Cron, claim bằng SKIP LOCKED, retry thuộc riêng outbox (backoff 1→2→4 phút, đỗ `failed` sau 8 lần). *(`packages/email` 13 test; SMS đã bỏ — xem §1.3.)* 🔒 **còn chờ**: domain + DNS SPF/DKIM/DMARC + `RESEND_API_KEY` thật — code xong không có nghĩa email tới inbox.
 - **AC6** `🟨` — Given form trên mạng 4G nghẽn, When submit, Then retry tự động tối đa 3 lần với backoff, hiện trạng thái "đang gửi" rõ ràng, và **bấm nhiều lần không tạo bản trùng** — vì server coi mọi lần submit lại là luồng gửi lại mã. *(client retry `✅`; cần test throttle Slow 3G)*
-- **AC7** `⬜` — Given walk-in tại cổng chưa đăng ký trước, When PG hướng dẫn quét QR trên poster hoặc mở form rút gọn 4 trường (tên, SĐT, trường, MSSV), Then luồng cấp QR giống AC4, hoàn tất dưới 30 giây. Năm trường còn lại thu sau qua email.
+- **AC7** `✅` — Given walk-in tại cổng chưa đăng ký trước, When quét QR poster mở `/dang-ky?nhanh` trên **máy của chính sinh viên**, Then form 4 ô (tên, SĐT, trường, MSSV) + 1 checkbox đồng ý → QR hiện ngay như AC4, nút "LẤY MÃ QR NGAY". Email **tuỳ chọn** — SĐT là danh tính; không email thì outbox tự bỏ qua (không xếp mail cho địa chỉ không tồn tại). Nguồn ghi `walk_in` để báo cáo tách được. Gửi lại cùng SĐT = luồng gửi lại mã.
+  *Vì sao trên máy SV chứ không phải máy PG: không có máy in — mã QR phải nằm trên máy sinh viên để dùng cả ngày, và SV gõ tên mình trên bàn phím của mình nhanh hơn PG gõ hộ. Máy PG chỉ chỉ tay vào poster.*
+  *Poster: in QR trỏ `https://<domain>/dang-ky?nhanh` — hạng mục in ấn, thuộc gói vận hành.*
 
 ### 3.2 Nhắc lịch (ADMIN → email, tự động)
 - **AC8** `🟨` — Given SV đã đăng ký, When đến D-3, D-1, và 07:00 sáng ngày sự kiện, Then tự gửi email nhắc, throttle ~500 email/giờ, ghi log bounce. *(bảng outbox + `claim_outbox_batch` + worker + template nhắc D-3/D-1/sáng-D `✅`; thiếu: job đẩy hàng loạt vào outbox theo mốc ngày — một câu INSERT có điều kiện, chạy tay hoặc cron)*
@@ -213,7 +215,7 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 
 ## 4. Test Plan
 
-### 4.1 Đã có — **237 test**, PGlite, chạy trong CI mọi push
+### 4.1 Đã có — **240 test**, PGlite, chạy trong CI mọi push
 
 | Bộ test | Test | Chứng minh |
 |---|---|---|
@@ -224,13 +226,13 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 | **environment** | **16** | Chặn webview Zalo · cổng kiểm thiết bị đỗ/trượt |
 | schema + ledger | 16 | Idempotency 2 lớp, ledger append-only |
 | rewards | 18 | Thang quà, tồn kho nguyên tử, cấp đúng N |
-| registration | 15 | Chống trùng trong transaction, outbox có backoff |
+| registration | 18 | Chống trùng trong transaction, outbox có backoff, walk-in không email |
 | **pg-devices** | **28** | Claim thiết bị · phân quyền checkpoint · Early Bird · roster delta |
 | **two-ladders** | **13** | Hai thang đếm (§1.5) · session không lọt thang đặc biệt · watchdog >70% |
 | **golden-hours** | **18** | 3 nắp không thể vượt · thưởng không thể nhân đôi · replay an toàn · ngân sách ngày là hard stop |
 | **xlsx-lite** | **8** | Zip round-trip · tiếng Việt nguyên vẹn theo cấu trúc · số là ô số |
 | **email** | **13** | QR đính kèm qua cid, không hotlink · escape HTML · Resend protocol, lỗi không throw |
-| **Tổng** | **237** | |
+| **Tổng** | **240** | |
 
 **Giới hạn đã biết:** PGlite chạy 1 kết nối → chứng minh *logic*, chưa chứng minh *đồng thời*.
 

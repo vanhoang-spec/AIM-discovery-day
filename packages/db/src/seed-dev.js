@@ -191,7 +191,14 @@ export async function seedStudentsDev(pg) {
 
   // Seeds insert explicit ids, which do NOT advance the serial sequences —
   // the first admin-created row would then collide with id 1. Bump every
-  // sequence past its table's max. (Classic trap; hit for real on 26/08.)
+  // sequence past its table's max. (Classic trap; hit for real on 26/08,
+  // FOUR times now — the fourth was student_seq_counter below, which broke
+  // every new dev registration once students 1001–1005 were seeded.)
+  await pg.query(
+    `select setval('student_seq_counter',
+                   greatest((select coalesce(max(seq), 1000) from students), 1000) + 1,
+                   false)`,
+  );
   for (const table of ['ref_schools', 'zones', 'checkpoints', 'gift_tiers',
                        'special_activities', 'pg_staff', 'pg_devices', 'editions']) {
     await pg.query(

@@ -46,6 +46,13 @@ export default function RegisterPage() {
   const [topError, setTopError] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null); // API response on success
+  // ?nhanh — walk-in mode at the gate (AC7): four fields + one consent, the
+  // rest collected later. Read from location on mount to avoid the
+  // useSearchParams Suspense requirement.
+  const [walkin, setWalkin] = useState(false);
+  useEffect(() => {
+    setWalkin(new URLSearchParams(window.location.search).has('nhanh'));
+  }, []);
 
   // ---- reference data (edge-cached, one shared payload) ----
   useEffect(() => {
@@ -75,16 +82,23 @@ export default function RegisterPage() {
     const e = {};
     if (!form.event_id) e.event_id = 'Chọn điểm bạn sẽ tham dự';
     if (form.full_name.trim().length < 2) e.full_name = 'Nhập họ và tên của bạn';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim()))
+    if (walkin) {
+      // Email optional at the gate; validate only when typed.
+      if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim()))
+        e.email = 'Email chưa đúng định dạng (hoặc bỏ trống)';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) {
       e.email = 'Email chưa đúng định dạng';
+    }
     if (!/^(\+?84|0)\d{8,10}$/.test(form.phone.replace(/[\s.-]/g, '')))
       e.phone = 'Số điện thoại chưa đúng';
     if (!form.school_id && !form.school_other.trim())
       e.school_id = 'Chọn trường, hoặc chọn "Trường khác" và gõ tên';
     if (!form.student_code.trim()) e.student_code = 'Nhập mã số sinh viên';
-    if (!form.birth_year) e.birth_year = 'Chọn năm sinh';
-    if (!form.province_code) e.province_code = 'Chọn nơi bạn đang sống';
-    if (!form.gender) e.gender = 'Chọn một mục';
+    if (!walkin) {
+      if (!form.birth_year) e.birth_year = 'Chọn năm sinh';
+      if (!form.province_code) e.province_code = 'Chọn nơi bạn đang sống';
+      if (!form.gender) e.gender = 'Chọn một mục';
+    }
     if (!form.consent_event) e.consent_event = 'Cần đồng ý để đăng ký';
     return e;
   }
@@ -110,6 +124,7 @@ export default function RegisterPage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              mode: walkin ? 'walkin' : undefined,
               event_id: Number(form.event_id),
               full_name: form.full_name,
               email: form.email,
@@ -167,8 +182,12 @@ export default function RegisterPage() {
 
   return (
     <main className="wrap">
-      <h1>Đăng ký Discovery Day</h1>
-      <p className="sub">Awaken The Lions 2026 · Thứ Bảy 12/09 · 8h–17h · miễn phí</p>
+      <h1>{walkin ? 'Đăng ký nhanh tại cổng' : 'Đăng ký Discovery Day'}</h1>
+      <p className="sub">
+        {walkin
+          ? 'Bốn ô là xong — nhận mã QR ngay, vào cổng luôn. Thông tin còn lại bổ sung sau.'
+          : 'Awaken The Lions 2026 · Thứ Bảy 12/09 · 8h–17h · miễn phí'}
+      </p>
 
       {topError && <div className="banner-err" role="alert">{topError}</div>}
 
@@ -195,7 +214,9 @@ export default function RegisterPage() {
                  onChange={(e) => set('full_name')(e.target.value)} />
         </Field>
 
-        <Field label="Email" why="— mã QR gửi về đây" error={errors.email} required>
+        <Field label="Email"
+          why={walkin ? '— không bắt buộc; có email thì nhận lại được mã nếu mất' : '— mã QR gửi về đây'}
+          error={errors.email} required={!walkin}>
           <input type="email" autoComplete="email" inputMode="email" value={form.email}
                  onChange={(e) => set('email')(e.target.value)} />
         </Field>
@@ -226,6 +247,7 @@ export default function RegisterPage() {
                  onChange={(e) => set('student_code')(e.target.value)} />
         </Field>
 
+        {!walkin && <>
         <Field label="Ngành / Chương trình học">
           <input type="text" value={form.major}
                  onChange={(e) => set('major')(e.target.value)} />
@@ -271,6 +293,7 @@ export default function RegisterPage() {
                    onChange={(e) => set('employer')(e.target.value)} />
           </Field>
         )}
+        </>}
 
         {/* Two consents, separate, never pre-ticked — a legal requirement,
             not a style choice. */}
@@ -284,6 +307,7 @@ export default function RegisterPage() {
         </label>
         {errors.consent_event && <p className="err-text">{errors.consent_event}</p>}
 
+        {!walkin && (
         <label className="consent">
           <input type="checkbox" checked={form.consent_sponsors}
                  onChange={(e) => set('consent_sponsors')(e.target.checked)} />
@@ -292,9 +316,10 @@ export default function RegisterPage() {
             (không bắt buộc).
           </span>
         </label>
+        )}
 
         <button className="primary" type="submit" disabled={busy}>
-          {busy ? 'Đang đăng ký…' : 'ĐĂNG KÝ NGAY'}
+          {busy ? 'Đang đăng ký…' : walkin ? 'LẤY MÃ QR NGAY' : 'ĐĂNG KÝ NGAY'}
         </button>
         <p className="muted" style={{ textAlign: 'center', marginTop: 10 }}>
           Đã đăng ký rồi? Điền lại đúng email hoặc SĐT cũ — mình gửi lại mã QR, không tạo bản trùng.

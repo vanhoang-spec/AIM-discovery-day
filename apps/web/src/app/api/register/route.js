@@ -29,8 +29,13 @@ export async function POST(request) {
     return bad('Dữ liệu gửi lên không hợp lệ');
   }
 
+  // Walk-in at the gate (AC7): four fields + consent, under 30 seconds with a
+  // queue behind you. Email becomes optional — the students table only needs
+  // one reachable identifier and the phone is it; the outbox already skips
+  // the confirmation email when there is no address to send to.
+  const walkin = body.mode === 'walkin';
   const fullName = String(body.full_name ?? '').trim();
-  const email = String(body.email ?? '').trim().toLowerCase();
+  const email = String(body.email ?? '').trim().toLowerCase() || null;
   const phone = String(body.phone ?? '').replace(/[^0-9+]/g, '');
   const eventId = Number(body.event_id);
   const schoolId = body.school_id ? Number(body.school_id) : null;
@@ -43,7 +48,10 @@ export async function POST(request) {
   const gender = ['nam', 'nu', 'khac'].includes(body.gender) ? body.gender : null;
 
   if (fullName.length < 2 || fullName.length > 120) return bad('Vui lòng nhập họ và tên', 'full_name');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return bad('Email chưa đúng định dạng', 'email');
+  if (email === null && !walkin) return bad('Email chưa đúng định dạng', 'email');
+  if (email !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return bad('Email chưa đúng định dạng', 'email');
+  }
   if (!/^(\+?84|0)\d{8,10}$/.test(phone)) return bad('Số điện thoại chưa đúng', 'phone');
   if (![1, 2, 3].includes(eventId)) return bad('Vui lòng chọn sự kiện', 'event_id');
   if (!schoolId && !schoolOther) return bad('Vui lòng chọn trường đang học', 'school_id');
@@ -64,11 +72,12 @@ export async function POST(request) {
     const result = await db.query(
       `select * from register_student(
          $1::smallint, $2, $3, $4, $5::smallint, $6, $7, $8, $9::smallint, $10,
-         $11, $12::gender, 'general'::registration_type, 'online'::registration_source,
+         $11, $12::gender, 'general'::registration_type, $18::registration_source,
          $13, $14, $15::inet, $16, $17)`,
       [eventId, fullName, email, phone, schoolId, schoolOther, studentCode,
        major, birthYear, provinceCode, employer, gender,
-       true, body.consent_sponsors === true, ip, 'v1-2026-08', searchKey(fullName)],
+       true, body.consent_sponsors === true, ip, 'v1-2026-08', searchKey(fullName),
+       walkin ? 'walk_in' : 'online'],
     );
     row = result.rows[0];
   } catch (err) {
