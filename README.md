@@ -19,10 +19,14 @@ Kế hoạch đầy đủ: xem plan file đã duyệt.
 | **Thiết bị PG + Early Bird (`0005`)** | ✅ Xong, 28 test |
 | App sinh viên — đăng ký, `/toi` | ✅ Chạy được end-to-end |
 | **App PG — quét, tra cứu, hàng đợi** | ✅ Chạy được end-to-end |
-| Email xác nhận · trang lịch hoạt động | ⬜ Chưa bắt đầu |
-| Admin console · survey nhà tài trợ | ⬜ Chưa bắt đầu |
+| **Hai thang đếm badge (`0006`, `0007`)** | ✅ Xong, 13 test |
+| **Email xác nhận + nhắc (`packages/email` + cron outbox)** | ✅ Xong, 13 test |
+| **Trang lịch `/lich` (2 route tĩnh ISR 60s)** | ✅ Chạy được |
+| **`/toi` tiến độ badge + ĐÃ HẾT** | ✅ Chạy được |
+| **Admin console `/admin` (4 tab)** | ✅ Chạy được end-to-end |
+| Excel export · survey nhà tài trợ · Giờ Vàng | ⬜ Chưa bắt đầu |
 
-**185 test, tất cả xanh.**
+**211 test, tất cả xanh.**
 
 ```bash
 npm install && npm test

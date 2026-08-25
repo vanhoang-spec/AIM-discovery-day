@@ -188,4 +188,16 @@ export async function seedStudentsDev(pg) {
     select 1, 1, n from generate_series(1, 5) n
     on conflict do nothing;
   `);
+
+  // Seeds insert explicit ids, which do NOT advance the serial sequences —
+  // the first admin-created row would then collide with id 1. Bump every
+  // sequence past its table's max. (Classic trap; hit for real on 26/08.)
+  for (const table of ['ref_schools', 'zones', 'checkpoints', 'gift_tiers',
+                       'special_activities', 'pg_staff', 'pg_devices', 'editions']) {
+    await pg.query(
+      `select setval(pg_get_serial_sequence($1, 'id'),
+                     (select coalesce(max(id), 0) + 1 from ${table}), false)`,
+      [table],
+    );
+  }
 }

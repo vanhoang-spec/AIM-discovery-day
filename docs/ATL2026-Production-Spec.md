@@ -183,7 +183,7 @@ Nền tảng: `✅` schema `0003_rewards.sql` + 18 test · `⬜` giao diện
 - **AC24** `⬜` — Given mất mạng tại điểm hoạt động đặc biệt, Then chuyển hẳn sang sổ vé giấy đánh số của supervisor; app hiện rõ trạng thái "chế độ giấy" để PG không cố quét.
 
 ### 3.7 Đối soát & báo cáo (ADMIN) — `⬜` giao diện
-- **AC25** `🟨` — Given hết giờ sự kiện, When supervisor mở màn đối soát, Then thấy: hàng đợi từng máy PG đã xả về 0 chưa, số giao dịch break-glass cần nhập tay, và view tự phát hiện lệch số. *(`v_progress_drift` `✅` trong `0002_ledger.sql`)*
+- **AC25** `🟨` — *(dashboard /admin đã hiện: drift tile, hàng đợi + sync từng máy PG — còn thiếu màn nhập vé giấy)* Given hết giờ sự kiện, When supervisor mở màn đối soát, Then thấy: hàng đợi từng máy PG đã xả về 0 chưa, số giao dịch break-glass cần nhập tay, và view tự phát hiện lệch số. *(`v_progress_drift` `✅` trong `0002_ledger.sql`)*
 - **AC26** `⬜` — Given giao dịch break-glass đã ghi giấy, When supervisor nhập lại sau sự kiện, Then merge vào cùng ledger, đánh dấu nguồn `manual_reconciliation` — không ghi đè, không tạo trùng.
 - **AC27** `⬜` 🔒 — Given cần xuất báo cáo cho 1 NTT cụ thể, When admin xuất Excel, Then file **mặc định không chứa email/SĐT** — chỉ gồm SV đã tick đồng ý chia sẻ với NTT; multi-sheet: attendance theo giờ, badge theo zone, phễu ngưỡng quà, survey (kèm % hoàn thành so với quà thực phát), nhật ký Giờ Vàng. *Chờ xác nhận pháp lý phạm vi chia sẻ.*
 - **AC28** `⬜` — Given cần chạy Grand Finale 01/11, When admin nhân bản sự kiện, Then 1 thao tác copy toàn bộ cấu hình (zone, checkpoint, ngưỡng, mẫu email) sang `event_id` mới — không sửa code, không deploy lại.
@@ -191,18 +191,20 @@ Nền tảng: `✅` schema `0003_rewards.sql` + 18 test · `⬜` giao diện
 ### 3.8 Cấu hình vận hành (không cứng trong code)
 Ba tham số sau **phải** là dữ liệu theo `event_id`. Cột đã có; thiếu giao diện admin.
 
-- **AC29** `🟨` — Bật/tắt từng hoạt động có tính badge hay không. *(`checkpoints.counts_toward_badges` `✅`)*
+- **AC29** `✅` — Bật/tắt từng hoạt động có tính badge hay không. *(cột + nút trong tab Hoạt động, tự rebuild bộ đếm)*
 - **AC30** `🟨` — Survey có tự cấp badge hay không, theo từng booth. *(`checkpoints.badge_award_mode` `✅` — 4 chế độ: `pg_scan` / `survey_complete` / `either` / `both_required`)*
-- **AC31** `🟨` — Thang quà cộng dồn hay chỉ bậc cao nhất. *(`events.gift_ladder_mode` `✅`)*
+- **AC31** `✅` — Thang quà cộng dồn hay chỉ bậc cao nhất. *(nút đổi trong tab Cấu hình + audit)*
+
+Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **không bao giờ thu hồi quyền lợi đã cấp**. Tăng x hoặc y chạy hai nhịp — nhịp một trả dry-run kèm bán kính ảnh hưởng ("N SV mất điều kiện, M SV đã đổi quà — giữ nguyên"), chỉ `confirm: true` mới ghi; hạ kho dưới số đã phát bị chặn 409; mọi thay đổi vào audit_log với before/after.
 
 ### 3.9 AC bổ sung — yêu cầu gốc của AIM chưa có trong v1.0
 
 - **AC32** `✅` **— Trang lịch hoạt động.** Given SV mở link trong email xác nhận, When xem lịch, Then thấy danh sách hoạt động **theo giờ** và **theo khu vực** (2 chế độ xem), có chỉ báo `Đông / Vừa / Vắng`. Đã build thành **hai route tĩnh** `/lich` và `/lich/khu-vuc` ISR 60s (một route + `?xem=` sẽ thành dynamic và mọi SV chạm origin — đúng cái bẫy cần tránh); 0 byte client JS; chip Đông/Vừa/Vắng đọc từ bảng rollup và **chỉ hiện khi có scan thật**.
   > **Thuộc mốc 30/08**, không phải mốc sau: email xác nhận trỏ tới trang này. *(Yêu cầu #3 phía SV trong DOCX gốc — v1.0 không có AC.)*
 - **AC33** `⬜` **— Export Excel tổng cho AIM.** Given admin cần báo cáo nội bộ, When xuất, Then nhận file multi-sheet đầy đủ — khác AC27 vốn chỉ lo phần riêng từng NTT và đã lọc PII. Sinh bằng **job nền**, không sinh đồng bộ trong HTTP request. Dùng `.xlsx` thật, không CSV: Excel bản Việt Nam mở CSV thiếu BOM sẽ hiện `Nguyá»…n VÄƒn A` và khách sẽ báo là "sai dữ liệu". *(Yêu cầu admin #4 trong DOCX gốc.)*
-- **AC34** `⬜` **— CRUD hoạt động.** Given admin cần sửa chương trình, When mở màn quản lý, Then sửa được **tên, mô tả, thời gian** từng hoạt động, cùng zone, sức chứa, và 3 cờ ở AC29–31. *(Yêu cầu admin #5 trong DOCX gốc — AC29–31 chỉ là cờ dữ liệu, không phải màn sửa.)*
-- **AC35** `⬜` **— Dashboard zone nóng/nguội.** Given AIM cần điều phối đám đông, When mở dashboard, Then thấy zone nào đông/vắng theo 15 phút gần nhất, phễu ngưỡng quà, suất đặc biệt còn lại. **Poll 5 giây từ bảng đếm tiền tổng hợp** (`checkpoint_minute_counts`) — tuyệt đối không `COUNT(*)` trên ledger mỗi 5 giây. Kèm nút "gửi thông báo" đẩy SV về zone vắng. *(Yêu cầu admin #3 trong DOCX gốc.)*
-- **AC36** `⬜` **— Tra cứu SV + sửa badge thủ công.** Given PG quét nhầm người, When admin tra cứu SV và sửa, Then thêm/gỡ badge được, **bắt buộc nhập lý do**, ghi `audit_log`, và gỡ badge là **xoá mềm** (`voided_at`) chứ không xoá thật. Không có đường sửa thì sai số nằm lại trong báo cáo NTT vĩnh viễn. *(Cả hai bản đánh giá độc lập đều nêu; `void_attendance` đã có `✅` ở tầng DB.)*
+- **AC34** `✅` **— CRUD hoạt động.** *(tab Hoạt động trong /admin: tạo/sửa tên, mô tả, giờ, vị trí; bật/tắt `counts_toward_badges` tự chạy `rebuild_all_progress` cả hai thang để drift tiếp tục nghĩa là "bug" chứ không phải "ai đó vừa đổi config".)* Given admin cần sửa chương trình, When mở màn quản lý, Then sửa được **tên, mô tả, thời gian** từng hoạt động, cùng zone, sức chứa, và 3 cờ ở AC29–31. *(Yêu cầu admin #5 trong DOCX gốc — AC29–31 chỉ là cờ dữ liệu, không phải màn sửa.)*
+- **AC35** `🟨` **— Dashboard zone nóng/nguội.** *(tab Tổng quan: zone heat 15 phút từ rollup, phễu quà, suất đặc biệt + SV đủ điều kiện thang core, sức khoẻ thiết bị PG, drift tile, chuông >70%; poll 5s; luôn ghi "dữ liệu tính đến HH:MM:SS". Còn thiếu: nút gửi thông báo đẩy SV về zone vắng — thuộc gói bulletin.)* Given AIM cần điều phối đám đông, When mở dashboard, Then thấy zone nào đông/vắng theo 15 phút gần nhất, phễu ngưỡng quà, suất đặc biệt còn lại. **Poll 5 giây từ bảng đếm tiền tổng hợp** (`checkpoint_minute_counts`) — tuyệt đối không `COUNT(*)` trên ledger mỗi 5 giây. Kèm nút "gửi thông báo" đẩy SV về zone vắng. *(Yêu cầu admin #3 trong DOCX gốc.)*
+- **AC36** `✅` **— Tra cứu SV + sửa badge thủ công.** *(tab Sinh viên: một ô tìm tự nhận diện tên/SĐT/MSSV/mã — cùng `detectQueryKind` với app PG nên hai bề mặt không bao giờ hiểu khác nhau; gỡ badge qua `void_attendance` (xoá mềm + rebuild 2 thang), cấp bù qua `record_scan` nguồn `admin_manual` — cùng một đường ghi duy nhất, không thể lách unique index; cả hai bắt buộc lý do + tên người thao tác, vào audit_log.)* Given PG quét nhầm người, When admin tra cứu SV và sửa, Then thêm/gỡ badge được, **bắt buộc nhập lý do**, ghi `audit_log`, và gỡ badge là **xoá mềm** (`voided_at`) chứ không xoá thật. Không có đường sửa thì sai số nằm lại trong báo cáo NTT vĩnh viễn. *(Cả hai bản đánh giá độc lập đều nêu; `void_attendance` đã có `✅` ở tầng DB.)*
 - **AC37** `✅` **— Hai thang đếm badge** (Ver02 §025, xem §1.5). Given SV có 7 badge tổng nhưng chỉ 2 hoạt động thật (cổng + 1 booth), When giữ suất hoạt động đặc biệt, Then bị từ chối `not_eligible` — giàu thang quà không mua được vé Meet & Greet. Bậc quà 1/2/3 vẫn đếm đủ 7. *(13 test trong `two-ladders.test.js`, gồm cả watchdog >70%.)*
 - **AC38** `⬜` *(optional — đúng chữ Ver02 §026)* **— Thông báo đủ điều kiện Meet & Greet.** Given SV vừa đạt `core_badge_count ≥ y`, When mở /toi lần poll kế, Then hàng "Hoạt động đặc biệt" chuyển "Đủ điều kiện — tới quầy đăng ký" *(phần passive này đã nằm trong AC14b)*. Phần đẩy chủ động (email/push) **không làm**: 60 suất cho ~190 người đủ điều kiện — đẩy thông báo là công thức tạo cảnh chen lấn trước mặt NTT; kênh chủ động là PG đọc khi quét + MC.
 
@@ -288,7 +290,10 @@ Workflow đã có job `verify` chạy toàn bộ test **trước** khi deploy, k
 | `ATL_HMAC_KEY` | Vercel env (production) | Khoá ký QR — **không bao giờ trong git, không bao giờ trong DB**. Code từ chối fallback sang khoá dev khi `NODE_ENV=production` |
 | `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | GitHub Actions secrets | Cho workflow deploy thủ công |
 | Supabase service role key | Vercel env | Chỉ server-side, không lộ ra client |
-| Resend API key | Vercel env | Domain gửi phải là **subdomain riêng**, không dùng domain gốc |
+| Resend API key (`RESEND_API_KEY`) + `EMAIL_FROM` | Vercel env | Domain gửi phải là **subdomain riêng**, không dùng domain gốc |
+| `CRON_SECRET` | Vercel env | Vercel Cron tự gắn header này khi gọi `/api/cron/outbox`; thiếu nó endpoint từ chối |
+| `ADMIN_ACCESS_KEY` | Vercel env | Mã truy cập console /admin (v1: một mã chung cho ~3 admin AIM — đánh đổi có chủ đích, mọi thao tác vẫn ghi audit_log kèm tên người gõ). Production từ chối chạy nếu thiếu |
+| `NEXT_PUBLIC_SITE_URL` | Vercel env | URL gốc dùng trong email (link /toi, /lich) |
 
 *(v1.0 có dòng SMS credentials — đã gỡ.)*
 
