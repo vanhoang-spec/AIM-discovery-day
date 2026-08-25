@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATL2026 — Lo-fi Wireframe</title>
+<style>
+  :root{
+    --paper:#efefec;
+    --line:#8a8a86;
+    --line-strong:#2b2b28;
+    --box:#ffffff;
+    --box-alt:#e2e2dd;
+    --annot:#b5451b;
+    --annot-bg:#fbe9e0;
+    --offline:#5b6b52;
+    --offline-bg:#e7ede2;
+    --mono: 'Courier New', Courier, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--line-strong);
+    font-family:var(--mono); font-size:13px; line-height:1.4;
+  }
+  header{
+    padding:20px 24px 12px; border-bottom:2px solid var(--line-strong);
+    display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;
+  }
+  header h1{margin:0; font-size:16px; letter-spacing:0.5px;}
+  header .meta{color:var(--line); font-size:11px;}
+  nav{
+    display:flex; gap:0; border-bottom:2px solid var(--line-strong); background:var(--box-alt);
+    overflow-x:auto;
+  }
+  nav button{
+    font-family:var(--mono); font-size:12px; padding:10px 16px; background:none; border:none;
+    border-right:1px solid var(--line); cursor:pointer; color:var(--line-strong); white-space:nowrap;
+  }
+  nav button.active{ background:var(--paper); font-weight:bold; border-bottom:2px solid var(--paper); margin-bottom:-2px;}
+  nav button:focus-visible{ outline:2px solid var(--annot); outline-offset:-2px;}
+  main{ padding:24px; max-width:1180px; margin:0 auto;}
+  .screen{ display:none;}
+  .screen.active{ display:block;}
+  .frame-row{ display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start;}
+  .device{
+    border:2px solid var(--line-strong); background:var(--box); width:300px; flex-shrink:0;
+  }
+  .device.wide{ width:520px;}
+  .device-bar{
+    background:var(--line-strong); color:var(--paper); font-size:10px; padding:4px 8px;
+    display:flex; justify-content:space-between; gap:8px;
+  }
+  .device-body{ padding:12px; min-height:420px; display:flex; flex-direction:column; gap:8px;}
+  .device.wide .device-body{ min-height:340px;}
+  .box{ border:1.5px dashed var(--line); padding:8px; background:var(--paper);}
+  .box-solid{ border:1.5px solid var(--line-strong); padding:8px; background:var(--box-alt);}
+  .label{ font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--line); margin-bottom:3px;}
+  .btn{
+    border:1.5px solid var(--line-strong); text-align:center; padding:8px; font-weight:bold;
+    background:var(--box); letter-spacing:0.3px;
+  }
+  .btn.primary{ background:var(--line-strong); color:var(--paper);}
+  .placeholder-line{ height:8px; background:repeating-linear-gradient(90deg, var(--line) 0 4px, transparent 4px 8px); opacity:0.5; margin:4px 0;}
+  .qr-block{
+    width:150px; height:150px; margin:8px auto; border:2px solid var(--line-strong);
+    background:
+      repeating-conic-gradient(var(--line-strong) 0% 25%, transparent 0% 50%) 0 0/20px 20px;
+    position:relative;
+  }
+  .qr-block::after{
+    content:'QR'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,0.75); font-weight:bold; font-size:14px; letter-spacing:2px;
+  }
+  .row{ display:flex; gap:8px;}
+  .row > *{ flex:1;}
+  .pill{
+    display:inline-block; border:1px solid var(--line-strong); padding:2px 8px; font-size:10px;
+    background:var(--box);
+  }
+  .badge-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px;}
+  .badge-cell{ border:1px solid var(--line); aspect-ratio:1; display:flex; align-items:center; justify-content:center; font-size:9px; background:var(--paper);}
+  .badge-cell.filled{ background:var(--box-alt); border-color:var(--line-strong); font-weight:bold;}
+  .badge-cell.tier{ border-width:2px; border-color:var(--annot);}
+  .status-offline{
+    background:var(--offline-bg); color:var(--offline); border:1px solid var(--offline);
+    padding:4px 8px; font-size:10px; font-weight:bold; display:flex; justify-content:space-between;
+  }
+  .status-amber{
+    background:#fdf2d8; color:#8a6a12; border:1px solid #8a6a12; padding:6px; font-size:11px; font-weight:bold; text-align:center;
+  }
+  .status-ok{
+    background:#e2ede2; color:#2f5c34; border:1px solid #2f5c34; padding:6px; font-size:11px; font-weight:bold; text-align:center;
+  }
+  .annot{
+    position:relative; margin-top:6px; margin-bottom:6px; padding:8px 10px;
+    background:var(--annot-bg); border-left:3px solid var(--annot); color:var(--annot);
+    font-size:11px; max-width:260px;
+  }
+  .annot b{ color:var(--annot);}
+  .annot.wide{ max-width:none;}
+  .col-notes{ flex:1; min-width:260px; display:flex; flex-direction:column; gap:8px; padding-top:4px;}
+  .table-lite{ width:100%; border-collapse:collapse; font-size:11px;}
+  .table-lite th, .table-lite td{ border:1px solid var(--line); padding:5px 6px; text-align:left; vertical-align:top;}
+  .table-lite th{ background:var(--box-alt);}
+  .sparkline{ height:36px; display:flex; align-items:flex-end; gap:2px;}
+  .sparkline div{ background:var(--line-strong); width:6px;}
+  .section-title{ font-size:12px; font-weight:bold; margin:24px 0 10px; border-bottom:1px solid var(--line); padding-bottom:4px;}
+  .changelog{
+    border:2px solid var(--annot); background:var(--annot-bg); padding:12px 14px; margin-bottom:20px;
+    font-size:11px; color:var(--annot);
+  }
+  .changelog b{ color:var(--annot);}
+  .changelog ul{ margin:6px 0 0; padding-left:18px;}
+  .changelog li{ margin-bottom:3px;}
+  footer{ padding:16px 24px 40px; font-size:10px; color:var(--line); border-top:1px solid var(--line); margin-top:20px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ATL2026 — LO-FI WIREFRAME <span class="pill">v0.2 — không phải design cuối</span></h1>
+  <div class="meta">Discovery Day 12/09 &nbsp;·&nbsp; SV-APP / PG-APP / ADMIN &nbsp;·&nbsp; cập nhật 25/08/2026</div>
+</header>
+
+<nav>
+  <button class="tab-btn active" data-tab="sv">SV-APP</button>
+  <button class="tab-btn" data-tab="pg">PG-APP</button>
+  <button class="tab-btn" data-tab="admin">ADMIN</button>
+  <button class="tab-btn" data-tab="flow">SƠ ĐỒ LUỒNG</button>
+</nav>
+
+<main>
+
+  <div class="changelog">
+    <b>ĐÃ SỬA SO VỚI v0.1</b> — đối chiếu với Production Spec v1.1 (<code>docs/ATL2026-Production-Spec.md</code>):
+    <ul>
+      <li><b>Ngưỡng badge 2/4/6 → 2/5/7, y=6.</b> Số cũ đã lỗi thời; đơn hàng quà phụ thuộc con số này (HN 1.750/430/90 + 60 suất).</li>
+      <li><b>Bỏ SMS</b> khỏi màn cấp mã — SMS đã quyết cắt 25/08. Đường lui khi SV mất QR là PG tra <b>số điện thoại</b>, chạy offline.</li>
+      <li><b>Thêm màn Lịch hoạt động (AC32)</b> — yêu cầu gốc của AIM, v0.1 và spec v1.0 đều thiếu. Thuộc mốc 30/08 vì email xác nhận trỏ tới nó.</li>
+      <li><b>Thêm màn CRUD hoạt động (AC34)</b> — yêu cầu gốc của AIM, v0.1 và spec v1.0 đều thiếu.</li>
+    </ul>
+  </div>
+
+  <!-- ================= SV-APP ================= -->
+  <section class="screen active" id="sv">
+    <div class="section-title">SV-APP — 4 màn hình chính</div>
+    <div class="frame-row">
+
+      <div class="device">
+        <div class="device-bar"><span>SV-APP</span><span>/dang-ky</span></div>
+        <div class="device-body">
+          <div class="label">1 — Form đăng ký</div>
+          <div class="box"><div class="label">Họ tên</div><div class="placeholder-line"></div></div>
+          <div class="box"><div class="label">Số điện thoại</div><div class="placeholder-line"></div></div>
+          <div class="box"><div class="label">Email</div><div class="placeholder-line"></div></div>
+          <div class="box"><div class="label">Trường (gõ không dấu để lọc)</div><div class="placeholder-line"></div></div>
+          <div class="box"><div class="label">MSSV (bắt buộc)</div><div class="placeholder-line" style="width:60%"></div></div>
+          <div class="box-solid" style="font-size:10px;">
+            ☐ Tôi đồng ý điều khoản xử lý dữ liệu<br>
+            ☐ Tôi đồng ý chia sẻ dữ liệu với nhà tài trợ
+            <div style="color:var(--annot); font-weight:bold; margin-top:2px;">— 2 checkbox riêng, KHÔNG tick sẵn</div>
+          </div>
+          <div class="btn primary" style="margin-top:auto;">ĐĂNG KÝ</div>
+        </div>
+      </div>
+
+      <div class="device">
+        <div class="device-bar"><span>SV-APP</span><span>/dang-ky → thành công</span></div>
+        <div class="device-body" style="align-items:center; text-align:center;">
+          <div class="label">2 — Cấp QR ngay (0 giây)</div>
+          <div class="qr-block"></div>
+          <div class="box-solid" style="width:100%;">MÃ: <b>7F3-K9Q</b></div>
+          <div class="btn" style="width:100%;">↓ LƯU ẢNH MÃ QR</div>
+          <div class="annot" style="text-align:left; width:100%;">
+            <b>AC4 — Không chờ email.</b> QR render 1 lần phía server, cache SVG local → màn này chạy <b>0 request mạng</b> sau khi tải xong.
+          </div>
+        </div>
+      </div>
+
+      <div class="device">
+        <div class="device-bar"><span>SV-APP</span><span>/toi</span></div>
+        <div class="device-body">
+          <div class="label">3 — Màn hình chính trong ngày</div>
+          <div class="qr-block" style="width:90px; height:90px; margin:0 auto 4px;"></div>
+          <div class="status-offline"><span>● OFFLINE OK</span><span>cập nhật 10:42</span></div>
+          <div class="box">
+            <div class="label">Tiến độ badge — 5/7</div>
+            <div class="badge-grid">
+              <div class="badge-cell filled">1</div>
+              <div class="badge-cell filled tier">2</div>
+              <div class="badge-cell filled">3</div>
+              <div class="badge-cell filled">4</div>
+              <div class="badge-cell filled tier">5</div>
+              <div class="badge-cell">6</div>
+              <div class="badge-cell tier">7</div>
+            </div>
+            <div style="font-size:10px; margin-top:4px;">
+              Bậc 1 (2) ✓ · Bậc 2 (5) ✓ · Bậc 3 (7) — <b>còn 2</b><br>
+              Hoạt động đặc biệt (6) — <b>còn 1</b>
+            </div>
+          </div>
+          <div class="box"><div class="label">Việc tiếp theo</div>Zone "Living" đang vắng — thử ghé qua</div>
+          <div class="box"><div class="label">Lịch hôm nay</div>
+            <div style="font-size:10px;">09:30 Brief day <span class="pill">Đông</span></div>
+            <div style="font-size:10px;">10:00 Learning zone <span class="pill">Vừa</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="device">
+        <div class="device-bar"><span>SV-APP</span><span>/lich-trinh — AC32 MỚI</span></div>
+        <div class="device-body">
+          <div class="label">4 — Lịch hoạt động</div>
+          <div class="row">
+            <div class="btn" style="font-size:10px; padding:5px;">THEO GIỜ</div>
+            <div class="btn" style="font-size:10px; padding:5px; background:var(--box-alt);">THEO KHU VỰC</div>
+          </div>
+          <div class="box-solid" style="font-size:10px;">
+            <b>08:00 – 15:30</b><br>
+            Finance zone · Khu A <span class="pill">Đông</span><br>
+            Living zone · Khu B <span class="pill">Vắng</span><br>
+            Energy zone · Khu B <span class="pill">Vừa</span>
+          </div>
+          <div class="box-solid" style="font-size:10px;">
+            <b>09:30 – 11:00</b><br>
+            Brief day · Hội trường <span class="pill">Đông</span>
+          </div>
+          <div class="box-solid" style="font-size:10px;">
+            <b>10:00 – 15:30</b><br>
+            Learning zone · Phòng 301–304 <span class="pill">Vừa</span>
+          </div>
+          <div class="annot" style="margin-top:auto;">
+            <b>AC32 — màn còn thiếu ở v0.1.</b> Email xác nhận trỏ tới đây → <b>thuộc mốc 30/08</b>. Một payload chung cache edge 60s phục vụ cả 2.000 SV.
+          </div>
+        </div>
+      </div>
+
+      <div class="col-notes">
+        <div class="annot"><b>AC6 —</b> Submit không tạo bản trùng khi bấm nhiều lần: server coi mọi lần submit lại là <b>luồng gửi lại mã</b>, trả cùng QR cũ. Retry tự động 3 lần khi mạng chập chờn.</div>
+        <div class="annot"><b>AC1 —</b> Chống trùng <b>toàn campaign</b>, không theo từng sự kiện. Một người = một mã QR, dùng cho cả Discovery Day lẫn Grand Finale.</div>
+        <div class="annot"><b>AC14 —</b> Làm survey ngay trong lúc xếp hàng, nộp khi có sóng — badge duy nhất tăng cung mà <b>không tốn công suất trạm</b>.</div>
+        <div class="annot"><b>AC18 —</b> "Bạn còn thiếu gì" cập nhật theo badge thật. Loại ~25% người chưa đủ điều kiện <b>trước khi</b> họ xếp hàng ở quầy quà.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PG-APP ================= -->
+  <section class="screen" id="pg">
+    <div class="section-title">PG-APP — origin riêng, offline-first</div>
+    <div class="frame-row">
+
+      <div class="device">
+        <div class="device-bar"><span>PG-APP</span><span>quét liên tục — cổng</span></div>
+        <div class="device-body">
+          <div class="label">Chế độ quét liên tục — Cổng check-in</div>
+          <div class="status-offline"><span>● Đã đồng bộ</span><span>Đang gửi 3 · Chờ 0</span></div>
+          <div class="box-solid" style="flex:1; display:flex; align-items:center; justify-content:center; min-height:160px; font-size:11px;">
+            [ khung camera quét QR ]
+          </div>
+          <div class="status-ok">✓ NGUYỄN VĂN A — badge #1 lúc 08:41</div>
+          <div class="annot" style="margin-top:0;"><b>AC10 —</b> Không có màn xác nhận yêu cầu bấm tiếp — chỉ âm + rung + dòng tên, giữ nhịp 8 người/phút/lane.</div>
+        </div>
+      </div>
+
+      <div class="device">
+        <div class="device-bar"><span>PG-APP</span><span>quét lại (duplicate)</span></div>
+        <div class="device-body">
+          <div class="label">Trường hợp: quét lại QR đã có badge</div>
+          <div class="box-solid" style="flex:1; display:flex; align-items:center; justify-content:center; min-height:160px; font-size:11px;">
+            [ khung camera quét QR ]
+          </div>
+          <div class="status-amber">◐ ĐÃ CÓ BADGE — lúc 10:31</div>
+          <div class="annot" style="margin-top:0;"><b>AC11 —</b> Màu hổ phách, <b>không phải màu lỗi đỏ</b>. Coi nó là lỗi sẽ dạy PG bỏ qua màu đỏ, và lỗi thật sẽ lọt lưới.</div>
+        </div>
+      </div>
+
+      <div class="device">
+        <div class="device-bar"><span>PG-APP</span><span>tra cứu thủ công</span></div>
+        <div class="device-body">
+          <div class="label">Đường chính thứ hai — khi SV hết pin</div>
+          <div class="box"><div class="label">Gõ: mã 6 ký tự / SĐT / MSSV / tên</div><div class="placeholder-line"></div></div>
+          <div class="box-solid" style="font-size:10px;">
+            Trần Thị B — 09xxxxx678 — FTU<br>
+            Trần Thị Bích — 09xxxxx102 — HUTECH
+          </div>
+          <div class="annot" style="margin-top:0;">
+            <b>~1,8ms trên 2.000 dòng, chạy offline.</b> Chậm hơn quét QR (~15s vs 3s) nhưng không cần mạng, không cần pin SV.
+            <br><br><b>Sau khi bỏ SMS, đây là đường lui chính</b> cho nhóm đến tay không — nên tra bằng <b>số điện thoại</b> (entropy cao) chứ đừng tra bằng tên (dễ trùng hàng chục kết quả).
+          </div>
+        </div>
+      </div>
+
+      <div class="device">
+        <div class="device-bar"><span>PG-APP</span><span>chế độ quầy đổi quà</span></div>
+        <div class="device-body">
+          <div class="label">Quầy đổi quà — hiện bậc đủ điều kiện</div>
+          <div class="box-solid">SV: <b>Lê Văn C</b> — 5 badge</div>
+          <div class="box">☑ Bậc 1 (2 badge) — <span style="color:#2f5c34;">đã phát</span></div>
+          <div class="box">☑ Bậc 2 (5 badge) — <b>xác nhận trao</b></div>
+          <div class="box" style="opacity:0.4;">☐ Bậc 3 (7 badge) — chưa đủ</div>
+          <div class="btn primary">XÁC NHẬN TRAO QUÀ</div>
+          <div class="annot" style="margin-top:0;"><b>AC19/AC20 —</b> Hết kho → nút này bị khoá <b>ở tầng DB</b>, 2 quầy thao tác cùng lúc chỉ 1 lượt thành công.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ADMIN ================= -->
+  <section class="screen" id="admin">
+    <div class="section-title">ADMIN — Dashboard AIM / Supervisor</div>
+    <div class="frame-row">
+      <div class="device wide">
+        <div class="device-bar"><span>ADMIN</span><span>dashboard — poll 5s</span></div>
+        <div class="device-body">
+          <div class="row">
+            <div class="box-solid"><div class="label">Attendance hôm nay</div><b style="font-size:20px;">1.445</b><div style="font-size:10px;">đỉnh 11:00 · 72% tổng đăng ký</div></div>
+            <div class="box-solid"><div class="label">Badge phát ra</div><b style="font-size:20px;">4.870</b><div style="font-size:10px;">2,45/SV sau 4 đòn bẩy</div></div>
+            <div class="box-solid"><div class="label">Suất đặc biệt còn</div><b style="font-size:20px;">37 / 60</b><div style="font-size:10px;">hết dự kiến 14:20</div></div>
+          </div>
+          <div class="box">
+            <div class="label">Zone theo giờ</div>
+            <div class="sparkline">
+              <div style="height:20%"></div><div style="height:40%"></div><div style="height:70%"></div>
+              <div style="height:90%"></div><div style="height:60%"></div><div style="height:80%"></div>
+              <div style="height:45%"></div><div style="height:30%"></div>
+            </div>
+          </div>
+          <table class="table-lite">
+            <tr><th>Zone</th><th>Trạng thái</th><th>Hành động</th></tr>
+            <tr><td>Finance</td><td><span class="pill">Đông</span></td><td>—</td></tr>
+            <tr><td>Living</td><td><span class="pill">Vắng</span></td><td><span class="btn" style="display:inline-block; padding:2px 8px; font-size:10px;">⚡ Giờ Vàng</span></td></tr>
+            <tr><td>Career</td><td><span class="pill">Vừa</span></td><td>—</td></tr>
+          </table>
+          <div class="annot wide" style="margin-top:2px;">
+            <b>AC17/AC35 —</b> Bấm Giờ Vàng chỉ đẩy banner tới SV <b>đã check-in và chưa có badge zone đó</b>. 3 nắp an toàn (40 phút / 80 badge / ngân sách ngày 300) đều là <b>ràng buộc DB</b>, không phải hẹn giờ ở client. Dashboard đọc từ bảng đếm tiền tổng hợp — <b>không COUNT(*) trên ledger mỗi 5 giây</b>.
+          </div>
+        </div>
+      </div>
+
+      <div class="device">
+        <div class="device-bar"><span>ADMIN</span><span>giám sát thiết bị PG</span></div>
+        <div class="device-body">
+          <div class="label">40 máy quét — 1 dòng/máy</div>
+          <table class="table-lite">
+            <tr><th>Máy</th><th>Sync</th><th>Hàng đợi</th><th>Pin</th></tr>
+            <tr><td>PG-07</td><td>12s</td><td>0</td><td>62%</td></tr>
+            <tr style="background:#fbe9e0;"><td>PG-14</td><td><b>11 phút</b></td><td>47</td><td>18%</td></tr>
+            <tr><td>PG-22</td><td>4s</td><td>0</td><td>81%</td></tr>
+          </table>
+          <div class="annot" style="margin-top:0;"><b>2 báo động:</b> mất sync &gt;10 phút · checkpoint 0 lượt quét trong 10 phút (PG rời vị trí / hết pin).</div>
+        </div>
+      </div>
+
+      <div class="device">
+        <div class="device-bar"><span>ADMIN</span><span>CRUD hoạt động — AC34 MỚI</span></div>
+        <div class="device-body">
+          <div class="label">Sửa hoạt động</div>
+          <div class="box"><div class="label">Tên</div><div class="placeholder-line" style="width:70%"></div></div>
+          <div class="box"><div class="label">Mô tả</div><div class="placeholder-line"></div><div class="placeholder-line" style="width:50%"></div></div>
+          <div class="row">
+            <div class="box"><div class="label">Bắt đầu</div>08:00</div>
+            <div class="box"><div class="label">Kết thúc</div>15:30</div>
+          </div>
+          <div class="box"><div class="label">Khu vực</div>Finance zone</div>
+          <div class="box-solid" style="font-size:10px;">
+            ☑ Tính badge <span style="color:var(--line)">(AC29)</span><br>
+            ☐ Survey tự cấp badge <span style="color:var(--line)">(AC30)</span><br>
+            ☑ Thang quà cộng dồn <span style="color:var(--line)">(AC31)</span>
+          </div>
+          <div class="btn primary">LƯU</div>
+          <div class="annot" style="margin-top:0;">
+            <b>AC34 — màn còn thiếu ở v0.1.</b> Cột dữ liệu đã có sẵn trong schema; đây là giao diện sửa. AC29–31 chỉ là <b>cờ dữ liệu</b>, không phải màn hình.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FLOW ================= -->
+  <section class="screen" id="flow">
+    <div class="section-title">Sơ đồ luồng SV trong ngày (rút gọn từ tài liệu flow)</div>
+    <div style="display:flex; flex-direction:column; gap:0; max-width:640px;">
+      <div class="box-solid">1 · Đăng ký (trước 11/9) — chống trùng toàn campaign</div>
+      <div style="text-align:center; font-size:16px;">↓</div>
+      <div class="box-solid">2 · Cấp QR ngay — email dự phòng, PG tra SĐT khi mất QR</div>
+      <div style="text-align:center; font-size:16px;">↓</div>
+      <div class="box-solid">3 · Check-in cổng — badge #1 + Early Bird (trước 08:45)</div>
+      <div style="text-align:center; font-size:16px;">↓</div>
+      <div class="box-solid">4 · Vòng lặp booth ×2–6 lần — survey trong hàng, pitch 45s, quét, thoát</div>
+      <div style="text-align:center; font-size:16px;">↓</div>
+      <div class="box-solid">5 · Quầy đổi quà — 6 trạm, đỉnh 15:30–16:30</div>
+      <div style="text-align:center; font-size:16px;">↓</div>
+      <div class="box-solid" style="background:#fbe9e0; border-color:var(--annot);">6 · Hoạt động đặc biệt (≥6 badge) — DUY NHẤT bắt buộc online</div>
+      <div style="text-align:center; font-size:16px;">↓</div>
+      <div class="box-solid">7 · Ra về — đối soát 17:00–18:30, xuất báo cáo NTT</div>
+    </div>
+    <div class="annot wide" style="max-width:640px; margin-top:16px;">
+      Toàn bộ mũi tên trên chạy được offline, trừ bước 6 (tô đỏ) — vì trần suất là <b>trạng thái toàn cục</b>, 2 máy offline không thể tự chia nhau đếm. Mất mạng ở bước 6 → chuyển hẳn sang sổ vé giấy đánh số của supervisor (AC24).
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  ATL2026 · Lo-fi wireframe v0.2 — dùng để trình bày logic màn hình &amp; annotation kỹ thuật cho team, không phải bản thiết kế UI cuối cùng.
+  Đối chiếu AC trong <code>docs/ATL2026-Production-Spec.md</code> (v1.1). Ngưỡng badge lấy từ §1.4 của spec — <b>2/5/7, y=6</b>.
+</footer>
+
+<script>
+  document.querySelectorAll('.tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+      document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>
