@@ -85,3 +85,85 @@ export async function seedDev(pg) {
     );
   }
 }
+
+/**
+ * Dev-only PG fixtures: zones, checkpoints, staff and three claimable devices.
+ *
+ * Without these the scanner cannot be exercised at all locally — there is no
+ * code to claim and nowhere to award a badge. The claim codes are printed here
+ * on purpose so a developer can type one straight into the app.
+ *
+ *   K7M3QX → PG-07, cổng check-in
+ *   P4R8TW → PG-14, Finance zone
+ *   B2C5DF → PG-22, Finance zone
+ */
+export async function seedPgDev(pg) {
+  await pg.exec(`
+    insert into zones (id, event_id, name, display_order) values
+      (1, 1, 'Cổng vào', 0),
+      (2, 1, 'Finance zone', 1),
+      (3, 1, 'Living zone', 2)
+    on conflict do nothing;
+
+    insert into checkpoints (id, event_id, zone_id, kind, name, counts_toward_badges,
+                             display_order) values
+      (1, 1, 1, 'entrance',      'Cổng check-in',      true, 0),
+      (2, 1, 2, 'sponsor_booth', 'Techcombank',        true, 1),
+      (3, 1, 3, 'sponsor_booth', 'Vinamilk',           true, 2),
+      (4, 1, 1, 'entrance',      'Early Bird',         true, 9)
+    on conflict do nothing;
+
+    insert into pg_staff (id, event_id, full_name, role) values
+      (1, 1, 'Trần Minh', 'pg'),
+      (2, 1, 'Lê Thị Hoa', 'pg'),
+      (3, 1, 'Phạm Giám Sát', 'supervisor')
+    on conflict do nothing;
+
+    insert into pg_devices (id, event_id, claim_code, pg_staff_id, zone_id, label) values
+      (1, 1, 'K7M3QX', 1, 1, 'PG-07'),
+      (2, 1, 'P4R8TW', 2, 2, 'PG-14'),
+      (3, 1, 'B2C5DF', 3, 2, 'PG-22')
+    on conflict do nothing;
+
+    update events
+       set early_bird_until = now() + interval '12 hours',
+           checkin_checkpoint_id = 1,
+           early_bird_checkpoint_id = 4
+     where id = 1 and checkin_checkpoint_id is null;
+  `);
+}
+
+/**
+ * A handful of students so the scanner has something to scan locally.
+ *
+ * Needed because each app gets its own in-memory PGlite in development: a
+ * student registered through the web app does not exist in the PG app's
+ * database. Point both at the same `DATABASE_URL` to exercise the real
+ * cross-app flow.
+ *
+ * Their QR tokens are minted from seq 1001–1005 with the dev HMAC key.
+ */
+export async function seedStudentsDev(pg) {
+  const people = [
+    [1001, 'A00001', 'Nguyễn Thị Minh An', 'nguyen thi minh an', '0912345678', '2214810'],
+    [1002, 'A00002', 'Trần Quốc Tuấn',     'tran quoc tuan',     '0987654321', '2214811'],
+    [1003, 'A00003', 'Lê Hoàng Phương Uyên', 'le hoang phuong uyen', '0901112223', '2214812'],
+    [1004, 'A00004', 'Nguyễn Văn An',      'nguyen van an',      '0933445566', '2214813'],
+    [1005, 'A00005', 'Phạm Thị Bích',      'pham thi bich',      '0944556677', 'K58A1234'],
+  ];
+  for (const [seq, code, name, key, phone, mssv] of people) {
+    const r = await pg.query(
+      `insert into students (seq, lookup_code, full_name, name_search_key, email, phone,
+                             school_id, student_code, consent_event_at)
+       values ($1,$2,$3,$4,$5,$6,1,$7, now())
+       on conflict do nothing returning id`,
+      [seq, code, name, key, `sv${seq}@example.vn`, phone, mssv],
+    );
+    if (r.rows[0]) {
+      await pg.query(
+        `insert into registrations (student_id, event_id) values ($1, 1) on conflict do nothing`,
+        [r.rows[0].id],
+      );
+    }
+  }
+}

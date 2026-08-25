@@ -41,8 +41,10 @@ async function createPglite() {
   for (const f of readdirSync(dir).filter((x) => x.endsWith('.sql')).sort()) {
     await pg.exec(readFileSync(join(dir, f), 'utf8'));
   }
-  const { seedDev } = await import('./seed-dev.js');
+  const { seedDev, seedPgDev, seedStudentsDev } = await import('./seed-dev.js');
   await seedDev(pg);
+  await seedPgDev(pg);
+  await seedStudentsDev(pg);
   return {
     query: (text, params = []) => pg.query(text, params),
     kind: 'pglite',

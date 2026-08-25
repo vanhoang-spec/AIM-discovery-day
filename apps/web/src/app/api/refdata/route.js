@@ -7,7 +7,7 @@
  * region regardless of attendance.
  */
 
-import { getDb } from '@/lib/db';
+import { getDb } from '@atl/db';
 
 export async function GET() {
   const db = await getDb();

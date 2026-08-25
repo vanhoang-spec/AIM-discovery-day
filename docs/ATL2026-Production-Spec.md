@@ -124,15 +124,15 @@ Nền tảng: `✅` schema `0004_registration.sql` · `✅` form `/dang-ky` · `
 - **AC8** `🟨` — Given SV đã đăng ký, When đến D-3, D-1, và 07:00 sáng ngày sự kiện, Then tự gửi email nhắc, throttle ~500 email/giờ, ghi log bounce. *(bảng outbox + `claim_outbox_batch` `✅`; thiếu scheduler và template)*
 - **AC9** `🟨` — Given một email bounce cứng, When lần gửi tiếp theo tới cùng địa chỉ, Then **không** gửi nữa và đánh dấu để supervisor xử lý tay. *(`finish_outbox` park sau 8 lần thử `✅`; thiếu webhook bounce của Resend)*
 
-### 3.3 Check-in cổng (PG-APP) — `⬜` toàn bộ, không bị 🔒 nào chặn
-- **AC10** — Given PG mở chế độ "quét liên tục" tại cổng, When quét QR hợp lệ chưa check-in, Then cấp badge check-in trong **<150ms cảm nhận** (phản hồi local trước, đồng bộ server sau), phát âm thanh + rung + hiện tên — **không có màn xác nhận yêu cầu bấm tiếp**.
-- **AC11** — Given quét lại QR đã check-in rồi, When quét, Then hiện màu **hổ phách** "đã check-in lúc HH:MM" — **đây không phải lỗi, không phát âm lỗi**. Coi nó là lỗi sẽ dạy PG bỏ qua màu đỏ, và lỗi thật sẽ lọt lưới.
-- **AC12** — Given SV đến trước 08:45, When check-in, Then tự cộng thêm 1 badge "Early Bird" **trong cùng một lượt quét** (không phải quét 2 lần). *Cần migration mới: cột giờ cắt trên `events` + loại badge riêng.*
-- **AC13** — Given máy PG ở chế độ máy bay, When quét 2.000 lượt liên tục, Then không mất lượt nào; khi có mạng lại hàng đợi tự đẩy theo thứ tự, và **không lượt nào tạo 2 bản ghi trên server**. *(nền tảng `✅`: `scan_uid` do client sinh làm khoá chính)*
+### 3.3 Check-in cổng (PG-APP) — `✅` lõi + giao diện, 28 test schema + 43 test client
+- **AC10** `✅` — Given PG mở chế độ "quét liên tục" tại cổng, When quét QR hợp lệ chưa check-in, Then cấp badge check-in trong **<150ms cảm nhận** (phản hồi local trước, đồng bộ server sau), phát âm thanh + rung + hiện tên — **không có màn xác nhận yêu cầu bấm tiếp**.
+- **AC11** `✅` — Given quét lại QR đã check-in rồi, When quét, Then hiện màu **hổ phách** "đã check-in lúc HH:MM" — **đây không phải lỗi, không phát âm lỗi**. Coi nó là lỗi sẽ dạy PG bỏ qua màu đỏ, và lỗi thật sẽ lọt lưới.
+- **AC12** `✅` — Given SV đến trước 08:45, When check-in, Then tự cộng thêm 1 badge "Early Bird" **trong cùng một lượt quét** (không phải quét 2 lần). *Cần migration mới: cột giờ cắt trên `events` + loại badge riêng.*
+- **AC13** `✅` — Given máy PG ở chế độ máy bay, When quét 2.000 lượt liên tục, Then không mất lượt nào; khi có mạng lại hàng đợi tự đẩy theo thứ tự, và **không lượt nào tạo 2 bản ghi trên server**. *(nền tảng `✅`: `scan_uid` do client sinh làm khoá chính)*
 
 ### 3.4 Vòng lặp booth (PG-APP + SV-APP) — `⬜`
 - **AC14** — Given SV đang xếp hàng tại 1 zone, When mở app trong lúc chờ, Then thấy: badge đã có, "việc tiếp theo nên làm" theo độ đông zone khác, bản đồ sân, và làm được survey ≤8 câu ngay tại chỗ (nộp khi có sóng). Survey làm trong hàng **không tiêu tốn công suất trạm** — đây là badge duy nhất tăng cung mà không tăng tải.
-- **AC15** — Given PG quét badge tại bàn thoát của 1 checkpoint, When SV chưa có badge zone này, Then cấp 1 badge; **unique index chặn** SV có 2 badge cùng 1 checkpoint dù 2 PG quét cùng lúc. *(ràng buộc DB `✅` trong `0002_ledger.sql`)*
+- **AC15** `🟨` — Given PG quét badge tại bàn thoát của 1 checkpoint, When SV chưa có badge zone này, Then cấp 1 badge; **unique index chặn** SV có 2 badge cùng 1 checkpoint dù 2 PG quét cùng lúc. *(ràng buộc DB `✅` trong `0002_ledger.sql`)*
 - **AC16** — Given PG bật "chế độ quà khảo sát" tại zone tư vấn, When quét, Then vừa cấp badge vừa đánh dấu `survey_completed = true` **trong cùng một transaction**.
 - **AC17** — Given zone đang rảnh, When supervisor bấm "Giờ Vàng" cho zone đó, Then chỉ SV **đã check-in và chưa có badge zone đó** thấy banner "badge ×2 trong 40 phút"; tự tắt khi hết 40 phút **HOẶC** phát đủ 80 badge **HOẶC** hết ngân sách ngày (300) — **3 nắp an toàn đều là điều kiện DB, không phải hẹn giờ ở client**.
   Badge thưởng ghi thành **dòng riêng** (`kind = 'bonus'`), **không nhân số đếm** — nhân đôi sẽ phá bất biến "một checkpoint = một badge" đang được unique index bảo vệ.
@@ -176,17 +176,20 @@ Ba tham số sau **phải** là dữ liệu theo `event_id`. Cột đã có; thi
 
 ## 4. Test Plan
 
-### 4.1 Đã có — **114 test**, PGlite, chạy trong CI mọi push
+### 4.1 Đã có — **185 test**, PGlite, chạy trong CI mọi push
 
 | Bộ test | Test | Chứng minh |
 |---|---|---|
 | qr-token | 26 | Mint/verify token, chặn Base32 không song ánh |
 | qr-render | 17 | ECC-Q, chặn nhét URL vào QR |
 | vn-text | 22 | Gấp dấu, nhận diện loại truy vấn, tra cứu offline |
+| **scan-queue** | **27** | Mất mạng 1 tiếng không mất lượt nào · backoff có jitter · replay không nhân đôi |
+| **environment** | **16** | Chặn webview Zalo · cổng kiểm thiết bị đỗ/trượt |
 | schema + ledger | 16 | Idempotency 2 lớp, ledger append-only |
 | rewards | 18 | Thang quà, tồn kho nguyên tử, cấp đúng N |
-| **registration** | **15** | Chống trùng trong transaction, outbox có backoff |
-| **Tổng** | **114** | |
+| registration | 15 | Chống trùng trong transaction, outbox có backoff |
+| **pg-devices** | **28** | Claim thiết bị · phân quyền checkpoint · Early Bird · roster delta |
+| **Tổng** | **185** | |
 
 **Giới hạn đã biết:** PGlite chạy 1 kết nối → chứng minh *logic*, chưa chứng minh *đồng thời*.
 

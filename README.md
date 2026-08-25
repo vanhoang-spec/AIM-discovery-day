@@ -10,13 +10,19 @@ Kế hoạch đầy đủ: xem plan file đã duyệt.
 |------|-----------|
 | Thư viện QR token (`packages/qr-token`) | ✅ Xong, 26 test |
 | Render QR (`packages/qr-render`) | ✅ Xong, 17 test |
-| Tra cứu tiếng Việt không dấu (`packages/vn-text`) | ✅ Xong, 22 test |
-| Schema + sổ cái quét (`supabase/migrations/0001`, `0002`) | ✅ Xong, 16 test |
-| Quà & suất giới hạn (`supabase/migrations/0003`) | ✅ Xong, 18 test |
-| App sinh viên / PG / admin | ⬜ Chưa bắt đầu |
-| Survey nhà tài trợ | ⬜ Chưa bắt đầu |
+| Tra cứu tiếng Việt (`packages/vn-text`) | ✅ Xong, 22 test |
+| **Hàng đợi offline (`packages/scan-queue`)** | ✅ Xong, 43 test |
+| **Kết nối DB dùng chung (`packages/db`)** | ✅ Xong |
+| Schema + sổ cái quét (`0001`, `0002`) | ✅ Xong, 16 test |
+| Quà & suất giới hạn (`0003`) | ✅ Xong, 18 test |
+| Đăng ký (`0004`) | ✅ Xong, 15 test |
+| **Thiết bị PG + Early Bird (`0005`)** | ✅ Xong, 28 test |
+| App sinh viên — đăng ký, `/toi` | ✅ Chạy được end-to-end |
+| **App PG — quét, tra cứu, hàng đợi** | ✅ Chạy được end-to-end |
+| Email xác nhận · trang lịch hoạt động | ⬜ Chưa bắt đầu |
+| Admin console · survey nhà tài trợ | ⬜ Chưa bắt đầu |
 
-**99 test, tất cả xanh.**
+**185 test, tất cả xanh.**
 
 ```bash
 npm install && npm test
@@ -88,11 +94,16 @@ Máy chưa qua đủ 7 bước thì không ra trận — chuyển vị trí khô
 ## Cấu trúc
 
 ```
+apps/web/              App sinh viên — đăng ký, /toi (QR offline)
+apps/pg/               App PG — origin riêng, đóng băng được độc lập ngày sự kiện
 packages/qr-token/     Mint & verify token — dùng chung server, app PG, app SV
 packages/qr-render/    Render QR sang SVG/PNG — CHỈ chạy phía server
 packages/vn-text/      Gấp dấu tiếng Việt + tra cứu roster offline
-supabase/migrations/   0001 nền tảng · 0002 sổ cái · 0003 quà & suất
+packages/scan-queue/   Hàng đợi offline + phát hiện môi trường trình duyệt
+packages/db/           Kết nối DB dùng chung (pooler settings) + seed dev
+supabase/migrations/   0001 nền tảng · 0002 sổ cái · 0003 quà · 0004 đăng ký · 0005 thiết bị PG
 supabase/test/         Test schema chạy trên PGlite
+docs/                  Production Spec v1.1 + wireframe v0.2
 ```
 
 ## Định dạng QR
@@ -113,6 +124,36 @@ Ba điều tuyệt đối không làm:
 - **Không chèn logo vào giữa QR, không đổi màu.** Logo ăn đúng phần dự phòng sửa lỗi mà ECC-Q vừa được nâng lên để có.
 
 Khoá HMAC nằm trong biến môi trường, **không bao giờ trong database và không bao giờ trong git**. Mỗi sự kiện một khoá (`events.token_key_id` cho biết dùng khoá nào).
+
+## App PG — vì sao nó được xây như vậy
+
+Đây là mảnh lớn nhất và rủi ro nhất của dự án. Ba quyết định định hình toàn bộ:
+
+**Hàng đợi là nguồn sự thật trên máy, server là thứ đối chiếu sau.** PG quét,
+thấy kết quả dưới 150ms, đi tiếp. Có mạng hay không tại khoảnh khắc đó không
+phải việc của họ. `packages/scan-queue` tách rời khỏi trình duyệt — lớp lưu trữ
+được tiêm vào — nên logic quan trọng nhất dự án test được bằng Node, không cần
+giả lập IndexedDB. Có bài test mô phỏng **mất mạng một tiếng, 60 lượt quét,
+không mất lượt nào**, và bài test khẳng định gửi lại cùng một batch **không tạo
+badge thứ hai**.
+
+**Không bao giờ hiện "thành công" trơn.** Mỗi kết quả mang `~` (đã ghi trên máy
+này) hoặc `✓` (server xác nhận). Gộp hai thứ này là cách một PG tự tin nói với
+sinh viên "bạn có 5 badge" từ một máy chưa đồng bộ từ 9h15.
+
+**Quét trùng ra màu hổ phách, không phải màu đỏ.** Đây sẽ là kết quả phổ biến
+thứ nhì cả ngày. Coi nó là lỗi sẽ dạy PG bỏ qua màu đỏ, và lỗi thật sẽ lọt lưới.
+
+Ba thứ nữa đáng biết trước khi sửa app PG:
+
+- **Webview Zalo bị chặn ở màn nhận máy.** Thẻ thiết bị sẽ được chụp và gửi qua
+  Zalo; PG bấm link; Zalo mở trong webview của nó và camera không hoạt động.
+  `environment.js` phát hiện và **chặn hẳn** kèm hướng dẫn — đây là lỗi tôi cho
+  là dễ xảy ra nhất trong ngày sự kiện.
+- **iPhone: cài vào màn hình chính TRƯỚC khi nhập mã.** Claim trong Safari rồi
+  mới cài sẽ cho PWA một kho lưu trữ riêng và PG phải nhập lại từ đầu.
+- **Camera tự tắt sau 8 giây không quét được.** Khi có hàng thì nó không bao giờ
+  kích hoạt; phần tiết kiệm pin đến từ các khoảng trống, vốn chiếm phần lớn ngày.
 
 ## Hai ràng buộc thực tế định hình thiết kế
 

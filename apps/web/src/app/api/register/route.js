@@ -11,7 +11,7 @@
  * flow are the same path.
  */
 
-import { getDb } from '@/lib/db';
+import { getDb } from '@atl/db';
 import { issueQr } from '@/lib/qr';
 import { searchKey } from '@atl/vn-text';
 

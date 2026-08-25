@@ -21,6 +21,12 @@ Chạy app đăng ký:
 cd apps/web && npm run dev
 ```
 
+Chạy app quét PG (cổng 3001, mã thiết bị mẫu `K7M3QX`):
+
+```bash
+cd apps/pg && npm run dev
+```
+
 Không có `DATABASE_URL` thì app tự dùng PGlite trong bộ nhớ và seed sẵn 2 sự kiện,
 24 trường, 34 tỉnh thành. Mở http://localhost:3000/dang-ky.
 
@@ -36,7 +42,8 @@ thời gian đọc vài file, đọc theo thứ tự này:
 | `supabase/migrations/0003_rewards.sql` | Cấp suất giới hạn bằng `FOR UPDATE SKIP LOCKED` trên slot tạo sẵn. Cách ngây thơ (đọc count → so cap → insert) sẽ cấp 201 suất khi cap là 200. |
 | `supabase/migrations/0004_registration.sql` | `register_student` — chống trùng nằm **trong** transaction, không phải đọc-rồi-ghi ở tầng API. Gửi lại form = luồng gửi lại mã, không tạo bản trùng. |
 | `packages/qr-token/src/index.js` | Token QR ký HMAC, xác thực **offline** ở cả hai đầu. Dùng chung nguyên vẹn giữa server, app PG và app sinh viên — fork file này là scanner sẽ từ chối sinh viên thật tại booth. |
-| `apps/web/src/lib/db.js` | `max: 1`, `prepare: false`, cổng 6543. Ba dòng này là khác biệt giữa sống sót burst 8h sáng và cạn connection. |
+| `packages/db/src/index.js` | `max: 1`, `prepare: false`, cổng 6543. Ba dòng này là khác biệt giữa sống sót burst 8h sáng và cạn connection. Dùng chung cho cả hai app — **đừng fork**. |
+| `packages/scan-queue/src/index.js` | Hàng đợi offline. **File quan trọng nhất dự án.** Idempotency hai lớp, backoff có jitter (40 máy mất sóng cùng lúc không được retry đồng loạt), và một lượt quét không có phản hồi từ server thì **giữ lại chờ gửi**, không bao giờ mặc định là đã tới. |
 
 ## Nguyên tắc đã chốt — đừng "sửa" nhầm
 
@@ -71,4 +78,4 @@ Mọi ràng buộc về tính đúng đắn đều có test đi kèm, và test �
 - `supabase/test/schema.test.js` — "quét lại 20 lần vẫn đúng một badge"
 - `packages/qr-token/test/token.test.js` — thử **mọi** đột biến một ký tự của token
 
-Bộ test hiện có **114 bài**, tất cả xanh. Xin giữ nguyên con số đó khi gửi PR.
+Bộ test hiện có **185 bài**, tất cả xanh. Xin giữ nguyên con số đó khi gửi PR.

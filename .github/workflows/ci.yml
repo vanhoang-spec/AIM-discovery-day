@@ -34,7 +34,11 @@ jobs:
         run: npm test
 
   build:
-    name: Build web app
+    name: Build apps
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [web, pg]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -52,7 +56,7 @@ jobs:
       # dependency that pushes /dang-ky past ~120 kB First Load JS should be
       # visible in the PR, not discovered on event day.
       - name: Build and report bundle size
-        working-directory: apps/web
+        working-directory: apps/${{ matrix.app }}
         # A build-time key only. It has to be present because src/lib/qr.js
         # refuses to fall back to the dev key in production — that guard is
         # deliberate, and a green build proves it still holds.
@@ -62,7 +66,7 @@ jobs:
           set -o pipefail
           npx next build 2>&1 | tee build.log
           {
-            echo "### Bundle sizes"
+            echo "### Bundle sizes — apps/${{ matrix.app }}"
             echo '```'
             grep -E "^[┌├└]|First Load JS" build.log || true
             echo '```'
