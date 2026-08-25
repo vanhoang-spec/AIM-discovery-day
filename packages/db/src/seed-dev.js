@@ -110,7 +110,10 @@ export async function seedPgDev(pg) {
       (1, 1, 1, 'entrance',      'Cổng check-in',      true, 0),
       (2, 1, 2, 'sponsor_booth', 'Techcombank',        true, 1),
       (3, 1, 3, 'sponsor_booth', 'Vinamilk',           true, 2),
-      (4, 1, 1, 'entrance',      'Early Bird',         true, 9)
+      -- 'bonus': counts on the gift ladder, NOT on the special ladder (0007).
+      (4, 1, 1, 'bonus',         'Early Bird',         true, 9),
+      -- A session checkpoint so dev data shows the two ladders diverging.
+      (5, 1, 1, 'hall_session',  'Inspiration Talk',   true, 3)
     on conflict do nothing;
 
     insert into pg_staff (id, event_id, full_name, role) values

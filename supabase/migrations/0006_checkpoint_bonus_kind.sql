@@ -1,0 +1,21 @@
+-- ============================================================================
+-- 0006 — checkpoint_kind 'bonus'
+--
+-- A 'bonus' checkpoint awards a badge that is NOT an activity: Early Bird,
+-- Giờ Vàng ×2, and anything similar. The distinction matters because of the
+-- two-ladder rule introduced in 0007 (Ver02 §025):
+--
+--   gift ladder  (bậc 1/2/3)      counts every badge, bonuses included
+--   special ladder (Meet & Greet)  counts only real activities:
+--                                  entrance check-in + sponsor booths
+--
+-- Early Bird was seeded as kind 'entrance', which would silently let a bonus
+-- count as an activity. From now on every bonus-type checkpoint MUST use
+-- kind = 'bonus'; 0007 backfills the ones we can identify.
+--
+-- This lives in its own file because a value added by ALTER TYPE cannot be
+-- used inside the same transaction, and the migration runner executes each
+-- file as one batch.
+-- ============================================================================
+
+alter type checkpoint_kind add value if not exists 'bonus';

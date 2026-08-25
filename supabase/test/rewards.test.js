@@ -36,7 +36,9 @@ async function freshDb() {
   return pg;
 }
 
-/** Create a student with `badges` badge_count already set. */
+/** Create a student with `badges` badge_count already set. Both ladders are
+ *  set to the same value — the common case of badges earned at booths; tests
+ *  that need the ladders to diverge (0007) set core_badge_count themselves. */
 async function student(pg, seq, badges = 0) {
   const r = await pg.query(
     `insert into students (seq, lookup_code, full_name, name_search_key, email)
@@ -45,7 +47,8 @@ async function student(pg, seq, badges = 0) {
   );
   const id = r.rows[0].id;
   await pg.query(
-    `insert into registrations (student_id, event_id, badge_count) values ($1, 1, $2)`,
+    `insert into registrations (student_id, event_id, badge_count, core_badge_count)
+     values ($1, 1, $2, $2)`,
     [id, badges],
   );
   return id;

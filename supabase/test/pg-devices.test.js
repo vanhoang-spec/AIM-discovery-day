@@ -31,7 +31,8 @@ async function freshDb() {
       (2, 1, 2, 'sponsor_booth', 'Techcombank',      true),
       (3, 1, 2, 'sponsor_booth', 'Momo',             true),
       (4, 2, 3, 'sponsor_booth', 'Booth HCM',        true),
-      (5, 1, 1, 'entrance',      'Early Bird',       true);
+      -- 'bonus' (0006): gift ladder yes, special ladder no.
+      (5, 1, 1, 'bonus',         'Early Bird',       true);
 
     -- Wired after the checkpoints exist, since these columns point at them.
     update events set early_bird_until = '2026-09-12 08:45+07',
