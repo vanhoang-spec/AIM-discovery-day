@@ -38,7 +38,7 @@ export async function GET(request) {
   )).rows[0];
   if (!cp) return Response.json({ error: 'not_found' }, { status: 404 });
 
-  const [totals, hourly, consented] = await Promise.all([
+  const [totals, hourly, consented, survey] = await Promise.all([
     db.query(
       `select count(*) filter (where a.voided_at is null)::int as badges,
               count(distinct a.student_id)::int as unique_visitors
@@ -65,7 +65,60 @@ export async function GET(request) {
           and s.merged_into_id is null
         order by s.full_name`,
       [eventId, checkpointId]),
+    // The sponsor's own survey, aggregated. Identified rows stay out of this
+    // file; the sponsor sees WHAT was answered, the consent sheet says WHO
+    // may be contacted — two different questions, kept apart on purpose.
+    db.query(
+      `select sv.title, sv.questions,
+              (select count(*)::int from survey_responses r where r.survey_id = sv.id) as responses,
+              (select coalesce(jsonb_agg(r.answers), '[]'::jsonb)
+                 from survey_responses r where r.survey_id = sv.id) as all_answers
+         from surveys sv
+        where sv.event_id = $1 and sv.checkpoint_id = $2`,
+      [eventId, checkpointId]),
   ]);
+
+  // Aggregate survey answers per question — counts for choices/scales,
+  // nothing identifying.
+  const surveySheets = [];
+  if (survey.rows[0]) {
+    const sv = survey.rows[0];
+    const rows = [['Câu hỏi', 'Phương án', 'Số lượt chọn']];
+    for (const q of sv.questions) {
+      if (q.type === 'choice' || q.type === 'multi') {
+        const counts = new Map((q.options ?? []).map((o) => [o, 0]));
+        for (const a of sv.all_answers) {
+          const v = a[q.id];
+          for (const one of Array.isArray(v) ? v : [v]) {
+            if (counts.has(one)) counts.set(one, counts.get(one) + 1);
+          }
+        }
+        for (const [opt, c2] of counts) rows.push([q.label, opt, c2]);
+      } else if (q.type === 'scale') {
+        const counts = [0, 0, 0, 0, 0];
+        for (const a of sv.all_answers) {
+          const v = a[q.id];
+          if (Number.isInteger(v) && v >= 1 && v <= 5) counts[v - 1]++;
+        }
+        counts.forEach((c2, i) => rows.push([q.label, String(i + 1), c2]));
+      } else {
+        rows.push([q.label, '(tự luận — xem tổng số)',
+          sv.all_answers.filter((a) => a[q.id]).length]);
+      }
+    }
+    surveySheets.push({
+      name: 'Khảo sát',
+      rows: [
+        ['Khảo sát', sv.title],
+        ['Tổng lượt trả lời', sv.responses],
+        ['Tỷ lệ so với badge tại booth',
+          totals.rows[0].badges > 0
+            ? Math.round((sv.responses / totals.rows[0].badges) * 100) + '%' : '—'],
+        ['', ''],
+        ...rows,
+      ],
+    });
+  }
 
   const wb = buildWorkbook([
     { name: 'Tổng quan', rows: [
@@ -82,6 +135,7 @@ export async function GET(request) {
       ['Giờ', 'Lượt quét', 'Badge cấp'],
       ...hourly.rows.map((r) => [r.hour, r.scans, r.badges]),
     ] },
+    ...surveySheets,
     { name: 'SV đồng ý nhận tin', rows: [
       ['Họ tên', 'Trường', 'Email', 'SĐT', 'Ghé lúc'],
       ...consented.rows.map((r) => [r.full_name, r.school, r.email, r.phone, r.visited_at]),

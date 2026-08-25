@@ -602,6 +602,174 @@ function Checkpoints({ api, actor }) {
   );
 }
 
+/* ---------------- Khảo sát NTT (Track 3) ---------------- */
+
+const Q_TYPES = [
+  ['choice', 'Chọn một'], ['multi', 'Chọn nhiều'], ['scale', 'Thang 1–5'], ['text', 'Tự luận'],
+];
+
+function SurveyEditor({ initial, booths, onSave, onCancel, busy }) {
+  const [f, setF] = useState(initial);
+  const setQ = (i, patch) => setF((x) => ({
+    ...x, questions: x.questions.map((q, j) => (j === i ? { ...q, ...patch } : q)),
+  }));
+
+  return (
+    <div className="admin-detail" style={{ marginTop: 12 }}>
+      <h4>{f.id ? 'Sửa khảo sát' : 'Khảo sát mới'}</h4>
+      <div className="admin-form-col" style={{ maxWidth: 640 }}>
+        {!f.id && (
+          <select className="admin-input" value={f.checkpoint_id ?? ''}
+            onChange={(e) => setF((x) => ({ ...x, checkpoint_id: Number(e.target.value) }))}>
+            <option value="">Chọn gian hàng (mỗi booth một khảo sát)…</option>
+            {booths.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        )}
+        <input className="admin-input" placeholder="Tiêu đề *" value={f.title}
+          onChange={(e) => setF((x) => ({ ...x, title: e.target.value }))} />
+        <input className="admin-input" placeholder="Lời mở đầu (tuỳ chọn)" value={f.intro ?? ''}
+          onChange={(e) => setF((x) => ({ ...x, intro: e.target.value }))} />
+        <div className="admin-form-row">
+          <input className="admin-input" style={{ maxWidth: 140 }} placeholder="#RRGGBB"
+            value={f.accent_hex ?? ''}
+            onChange={(e) => setF((x) => ({ ...x, accent_hex: e.target.value }))} />
+          <span className="muted" style={{ alignSelf: 'center', fontSize: 12.5 }}>
+            Màu nhấn của NTT — chỉ dùng ở nút và tiêu đề, chữ và nền vẫn của mình
+          </span>
+        </div>
+
+        {f.questions.map((q, i) => (
+          <div key={i} className="admin-form-col"
+            style={{ border: '1px solid var(--line-soft)', borderRadius: 8, padding: 10, margin: 0 }}>
+            <div className="admin-form-row">
+              <select className="admin-input" style={{ maxWidth: 130 }} value={q.type}
+                onChange={(e) => setQ(i, { type: e.target.value })}>
+                {Q_TYPES.map(([v, t2]) => <option key={v} value={v}>{t2}</option>)}
+              </select>
+              <input className="admin-input" placeholder={`Câu ${i + 1} *`} value={q.label}
+                onChange={(e) => setQ(i, { label: e.target.value })} />
+              <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5 }}>
+                <input type="checkbox" checked={!!q.required}
+                  onChange={(e) => setQ(i, { required: e.target.checked })} />bắt buộc
+              </label>
+              <button type="button" className="admin-btn" onClick={() =>
+                setF((x) => ({ ...x, questions: x.questions.filter((_, j) => j !== i) }))
+              }>×</button>
+            </div>
+            {(q.type === 'choice' || q.type === 'multi') && (
+              <input className="admin-input" placeholder="Các phương án, cách nhau dấu phẩy"
+                value={(q.options ?? []).join(', ')}
+                onChange={(e) => setQ(i, {
+                  options: e.target.value.split(',').map((x) => x.trim()).filter(Boolean),
+                })} />
+            )}
+          </div>
+        ))}
+
+        {f.questions.length < 8 ? (
+          <button type="button" className="admin-btn" onClick={() =>
+            setF((x) => ({
+              ...x,
+              questions: [...x.questions, { id: `q${Date.now().toString(36)}`, type: 'choice', label: '', options: [] }],
+            }))
+          }>+ Thêm câu ({f.questions.length}/8)</button>
+        ) : (
+          <p className="muted">Đủ 8 câu — trần cứng: khảo sát dài hơn sẽ bị bỏ dở trong hàng chờ.</p>
+        )}
+
+        <div className="admin-form-row">
+          <button type="button" className="admin-btn admin-btn-primary" disabled={busy}
+            onClick={() => onSave(f)}>Lưu</button>
+          <button type="button" className="admin-btn" onClick={onCancel}>Huỷ</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Surveys({ api, actor }) {
+  const [data, setData] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setData(await api(`/api/admin/surveys?event=${EVENT_ID}`));
+  }, [api]);
+  useEffect(() => { load().catch((e) => setMsg({ bad: true, text: e.message })); }, [load]);
+
+  const save = async (f) => {
+    setBusy(true); setMsg(null);
+    try {
+      const body = { event: EVENT_ID, actor, ...f };
+      const r = f.id
+        ? await api('/api/admin/surveys', { method: 'PATCH', body: JSON.stringify(body) })
+        : await api('/api/admin/surveys', { method: 'POST', body: JSON.stringify(body) });
+      setMsg({ bad: false, text: r.version_bumped
+        ? 'Đã lưu — câu hỏi đổi nên phiên bản tăng; câu trả lời cũ giữ nguyên phiên bản cũ.'
+        : 'Đã lưu.' });
+      setDraft(null);
+      load();
+    } catch (e) { setMsg({ bad: true, text: e.message }); } finally { setBusy(false); }
+  };
+
+  if (!data) return <p className="muted">Đang tải…</p>;
+
+  return (
+    <div>
+      {msg && <p className={msg.bad ? 'admin-err' : 'admin-ok'}>{msg.text}</p>}
+      <table className="admin-table">
+        <thead><tr>
+          <th>Khảo sát</th><th>Gian hàng</th><th>Câu</th><th>Trả lời</th>
+          <th>Badge tại booth</th><th>Đang mở</th><th></th>
+        </tr></thead>
+        <tbody>
+          {data.surveys.map((sv) => (
+            <tr key={sv.survey_id} className={sv.is_active ? '' : 'row-void'}>
+              <td>{sv.title} <span className="muted">v{sv.schema_version}</span></td>
+              <td>{sv.checkpoint_name}</td>
+              <td className="num">{sv.question_count}</td>
+              <td className="num">{sv.responses}</td>
+              <td className="num">{sv.badges_at_checkpoint}</td>
+              <td>{sv.is_active ? '✓' : 'tắt'}</td>
+              <td className="admin-row-actions">
+                <button type="button" className="admin-btn" onClick={() =>
+                  setDraft({ id: sv.survey_id, title: sv.title, intro: sv.intro,
+                             accent_hex: sv.accent_hex, questions: sv.questions ?? [] })
+                }>Sửa</button>
+                <button type="button" className="admin-btn" onClick={() =>
+                  api('/api/admin/surveys', {
+                    method: 'PATCH',
+                    body: JSON.stringify({ event: EVENT_ID, actor, id: sv.survey_id,
+                                           is_active: !sv.is_active }),
+                  }).then(load).catch((e) => setMsg({ bad: true, text: e.message }))
+                }>{sv.is_active ? 'Tắt' : 'Mở'}</button>
+              </td>
+            </tr>
+          ))}
+          {data.surveys.length === 0 && (
+            <tr><td colSpan={7} className="muted">Chưa có khảo sát nào.</td></tr>
+          )}
+        </tbody>
+      </table>
+
+      {!draft && data.available_booths.length > 0 && (
+        <button type="button" className="admin-btn" onClick={() =>
+          setDraft({ title: '', intro: '', accent_hex: '', questions: [], checkpoint_id: null })
+        }>+ Khảo sát mới</button>
+      )}
+      {!draft && data.available_booths.length === 0 && data.surveys.length > 0 && (
+        <p className="muted">Mọi gian hàng đều đã có khảo sát.</p>
+      )}
+
+      {draft && (
+        <SurveyEditor initial={draft} booths={data.available_booths}
+          onSave={save} onCancel={() => setDraft(null)} busy={busy} />
+      )}
+    </div>
+  );
+}
+
 /* ---------------- Đối soát (AC26) ---------------- */
 
 function Reconcile({ api, actor }) {
@@ -792,7 +960,7 @@ export default function AdminPage() {
       <nav className="admin-tabs">
         {[['overview', 'Tổng quan'], ['students', 'Sinh viên'],
           ['config', 'Cấu hình'], ['checkpoints', 'Hoạt động'],
-          ['reconcile', 'Đối soát']].map(([id, label]) => (
+          ['surveys', 'Khảo sát'], ['reconcile', 'Đối soát']].map(([id, label]) => (
           <button
             key={id} type="button"
             className={tab === id ? 'tab on' : 'tab'}
@@ -804,6 +972,7 @@ export default function AdminPage() {
       {tab === 'students' && <Students api={api} actor={actor} />}
       {tab === 'config' && <Config api={api} actor={actor} />}
       {tab === 'checkpoints' && <Checkpoints api={api} actor={actor} />}
+      {tab === 'surveys' && <Surveys api={api} actor={actor} />}
       {tab === 'reconcile' && <Reconcile api={api} actor={actor} />}
     </main>
   );

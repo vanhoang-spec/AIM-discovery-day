@@ -177,7 +177,8 @@ export default function MyQrPage() {
 
       <p className="muted" style={{ textAlign: 'center' }}>
         Mã QR hoạt động cả khi không có mạng.
-        {' '}<a href="/lich" style={{ color: 'var(--accent)' }}>Lịch hoạt động →</a>
+        {' '}<a href="/lich" style={{ color: 'var(--accent)' }}>Lịch hoạt động</a>
+        {' · '}<a href="/khao-sat" style={{ color: 'var(--accent)' }}>Khảo sát nhận badge</a>
       </p>
     </main>
   );

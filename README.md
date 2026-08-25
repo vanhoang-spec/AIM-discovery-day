@@ -24,9 +24,12 @@ Kế hoạch đầy đủ: xem plan file đã duyệt.
 | **Trang lịch `/lich` (2 route tĩnh ISR 60s)** | ✅ Chạy được |
 | **`/toi` tiến độ badge + ĐÃ HẾT** | ✅ Chạy được |
 | **Admin console `/admin` (4 tab)** | ✅ Chạy được end-to-end |
-| Excel export · survey nhà tài trợ · Giờ Vàng | ⬜ Chưa bắt đầu |
+| **Giờ Vàng (`0008`)** | ✅ Xong, 18 test |
+| **Walk-in cổng · quầy suất · đối soát vé giấy · export NTT · nhân bản sự kiện** | ✅ Chạy được |
+| **Excel export (`packages/xlsx-lite`)** | ✅ Xong, 8 test |
+| **Survey NTT (`0010` + /khao-sat + tab builder)** | ✅ Chạy được end-to-end |
 
-**211 test, tất cả xanh.**
+**260 test, tất cả xanh.**
 
 ```bash
 npm install && npm test

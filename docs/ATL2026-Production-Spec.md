@@ -164,10 +164,10 @@ Nền tảng: `✅` schema `0004_registration.sql` · `✅` form `/dang-ky` · `
 - **AC13** `✅` — Given máy PG ở chế độ máy bay, When quét 2.000 lượt liên tục, Then không mất lượt nào; khi có mạng lại hàng đợi tự đẩy theo thứ tự, và **không lượt nào tạo 2 bản ghi trên server**. *(nền tảng `✅`: `scan_uid` do client sinh làm khoá chính)*
 
 ### 3.4 Vòng lặp booth (PG-APP + SV-APP) — `⬜`
-- **AC14** — Given SV đang xếp hàng tại 1 zone, When mở app trong lúc chờ, Then thấy: badge đã có, "việc tiếp theo nên làm" theo độ đông zone khác, bản đồ sân, và làm được survey ≤8 câu ngay tại chỗ (nộp khi có sóng). Survey làm trong hàng **không tiêu tốn công suất trạm** — đây là badge duy nhất tăng cung mà không tăng tải.
+- **AC14** `🟨` — Given SV đang xếp hàng tại 1 zone, When mở /khao-sat trong lúc chờ, Then làm được survey ≤8 câu ngay tại chỗ; `response_uid` sinh MỘT lần mỗi lượt và giữ nguyên qua các lần bấm lại — mạng chập chờn cứ bấm gửi lại, server nuốt replay. Survey trong hàng **không tiêu tốn công suất trạm** — badge duy nhất tăng cung mà không tăng tải. *(Đã có: danh sách + form + màn COMPLETE có vòng pulse sống để nhân viên booth phân biệt màn hình thật với ảnh chụp. Chưa có: "việc tiếp theo nên làm" + bản đồ sân.)*
 - **AC14b** `✅` — Given SV mở /toi, When máy có mạng, Then thấy: số badge + "Cập nhật HH:MM", còn thiếu mấy badge tới bậc kế, bậc nào **ĐÃ HẾT** (chỉ ok/low/out — không bao giờ hiện số kho chính xác), và điều kiện hoạt động đặc biệt đọc **thang core** kèm câu giải thích. Auth = chính token QR (HMAC), không session. Poll 30s chỉ khi tab hiện. Mất mạng → QR vẫn render từ cache trước, kèm snapshot tiến độ cuối có giờ.
 - **AC15** `🟨` — Given PG quét badge tại bàn thoát của 1 checkpoint, When SV chưa có badge zone này, Then cấp 1 badge; **unique index chặn** SV có 2 badge cùng 1 checkpoint dù 2 PG quét cùng lúc. *(ràng buộc DB `✅` trong `0002_ledger.sql`)*
-- **AC16** — Given PG bật "chế độ quà khảo sát" tại zone tư vấn, When quét, Then vừa cấp badge vừa đánh dấu `survey_completed = true` **trong cùng một transaction**.
+- **AC16** `✅` — Given booth đặt `badge_award_mode`, When SV nộp khảo sát, Then `submit_survey_response` ghi câu trả lời VÀ gọi `record_scan` nguồn `survey` **trong cùng một transaction** — mode `survey_complete`/`either` cấp badge ngay, `both_required` chờ thêm lượt quét PG (record_scan sẵn có xử lý cả bốn mode; survey không mọc logic cấp riêng). Màn COMPLETE hiện tên + mã cho nhân viên đối chiếu khi mode yêu cầu gặp người.
 - **AC17** `✅` — Given zone đang rảnh, When supervisor bấm ⚡ trong tab Tổng quan, Then mọi badge **booth** được cấp tại zone đó kèm thêm 1 badge thưởng; tự tắt khi hết 40 phút **HOẶC** phát đủ 80 badge **HOẶC** hết ngân sách ngày (300) — **3 nắp đều là predicate DB trong `record_pg_scan`, không phải hẹn giờ client** (migration `0008`, 18 test).
   Badge thưởng là **dòng riêng trên checkpoint `bonus` theo zone** — không nhân số đếm (bất biến "một checkpoint = một badge" giữ nguyên), mỗi SV tối đa 1 thưởng/zone/ngày nhờ đúng unique index đó, đếm **thang quà** và không đếm thang đặc biệt (§1.5). uid thưởng suy ra từ uid gốc nên batch replay không nhân đôi.
   **Kênh báo SV đã đổi so với v1.0: KHÔNG banner trong app SV** — bắn thông báo cho 2.000 người để phát 80 badge tạo đúng cơn dồn cục mà tính năng này sinh ra để giải quyết. Kênh: MC + biển zone + banner trên máy PG (đi ké response sync, không tạo nhịp mạng mới) + PG đọc một câu khi quét.
@@ -196,7 +196,7 @@ Nền tảng: `✅` schema `0003_rewards.sql` + 18 test · `⬜` giao diện
 Ba tham số sau **phải** là dữ liệu theo `event_id`. Cột đã có; thiếu giao diện admin.
 
 - **AC29** `✅` — Bật/tắt từng hoạt động có tính badge hay không. *(cột + nút trong tab Hoạt động, tự rebuild bộ đếm)*
-- **AC30** `🟨` — Survey có tự cấp badge hay không, theo từng booth. *(`checkpoints.badge_award_mode` `✅` — 4 chế độ: `pg_scan` / `survey_complete` / `either` / `both_required`)*
+- **AC30** `✅` — Survey có tự cấp badge hay không, theo từng booth. *(`checkpoints.badge_award_mode` 4 chế độ, giờ có cả đường chạy thật qua `submit_survey_response` + test cả bốn mode.)*
 - **AC31** `✅` — Thang quà cộng dồn hay chỉ bậc cao nhất. *(nút đổi trong tab Cấu hình + audit)*
 
 Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **không bao giờ thu hồi quyền lợi đã cấp**. Tăng x hoặc y chạy hai nhịp — nhịp một trả dry-run kèm bán kính ảnh hưởng ("N SV mất điều kiện, M SV đã đổi quà — giữ nguyên"), chỉ `confirm: true` mới ghi; hạ kho dưới số đã phát bị chặn 409; mọi thay đổi vào audit_log với before/after.
@@ -210,13 +210,14 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 - **AC35** `🟨` **— Dashboard zone nóng/nguội.** *(tab Tổng quan: zone heat 15 phút từ rollup, phễu quà, suất đặc biệt + SV đủ điều kiện thang core, sức khoẻ thiết bị PG, drift tile, chuông >70%; poll 5s; luôn ghi "dữ liệu tính đến HH:MM:SS". Còn thiếu: nút gửi thông báo đẩy SV về zone vắng — thuộc gói bulletin.)* Given AIM cần điều phối đám đông, When mở dashboard, Then thấy zone nào đông/vắng theo 15 phút gần nhất, phễu ngưỡng quà, suất đặc biệt còn lại. **Poll 5 giây từ bảng đếm tiền tổng hợp** (`checkpoint_minute_counts`) — tuyệt đối không `COUNT(*)` trên ledger mỗi 5 giây. Kèm nút "gửi thông báo" đẩy SV về zone vắng. *(Yêu cầu admin #3 trong DOCX gốc.)*
 - **AC36** `✅` **— Tra cứu SV + sửa badge thủ công.** *(tab Sinh viên: một ô tìm tự nhận diện tên/SĐT/MSSV/mã — cùng `detectQueryKind` với app PG nên hai bề mặt không bao giờ hiểu khác nhau; gỡ badge qua `void_attendance` (xoá mềm + rebuild 2 thang), cấp bù qua `record_scan` nguồn `admin_manual` — cùng một đường ghi duy nhất, không thể lách unique index; cả hai bắt buộc lý do + tên người thao tác, vào audit_log.)* Given PG quét nhầm người, When admin tra cứu SV và sửa, Then thêm/gỡ badge được, **bắt buộc nhập lý do**, ghi `audit_log`, và gỡ badge là **xoá mềm** (`voided_at`) chứ không xoá thật. Không có đường sửa thì sai số nằm lại trong báo cáo NTT vĩnh viễn. *(Cả hai bản đánh giá độc lập đều nêu; `void_attendance` đã có `✅` ở tầng DB.)*
 - **AC37** `✅` **— Hai thang đếm badge** (Ver02 §025, xem §1.5). Given SV có 7 badge tổng nhưng chỉ 2 hoạt động thật (cổng + 1 booth), When giữ suất hoạt động đặc biệt, Then bị từ chối `not_eligible` — giàu thang quà không mua được vé Meet & Greet. Bậc quà 1/2/3 vẫn đếm đủ 7. *(13 test trong `two-ladders.test.js`, gồm cả watchdog >70%.)*
+- **AC39** `✅` **— Survey NTT trọn gói (Track 3).** Given admin tạo khảo sát cho một gian hàng (tab Khảo sát: mỗi booth một khảo sát, tối đa 8 câu — trần là CHECK constraint không phải gợi ý UI, 4 loại câu, màu nhấn hex-only), When SV làm trong hàng chờ, Then badge theo AC16, replay an toàn, một người một lần; sửa câu hỏi tự tăng `schema_version` và **câu trả lời cũ giữ phiên bản cũ** — sponsor sửa form 11:00 không hỏng response 10:59. Kết quả tổng hợp (đếm theo phương án, không định danh) tự nối vào sheet "Khảo sát" của export NTT; danh sách liên hệ vẫn là sheet riêng chỉ gồm người đã đồng ý — sponsor thấy NGƯỜI TA TRẢ LỜI GÌ và AI CHO PHÉP LIÊN HỆ là hai câu hỏi tách rời. *(Brand kit v1 = một màu nhấn; font/logo raster hoá là scope sau 12/09.)*
 - **AC38** `⬜` *(optional — đúng chữ Ver02 §026)* **— Thông báo đủ điều kiện Meet & Greet.** Given SV vừa đạt `core_badge_count ≥ y`, When mở /toi lần poll kế, Then hàng "Hoạt động đặc biệt" chuyển "Đủ điều kiện — tới quầy đăng ký" *(phần passive này đã nằm trong AC14b)*. Phần đẩy chủ động (email/push) **không làm**: 60 suất cho ~190 người đủ điều kiện — đẩy thông báo là công thức tạo cảnh chen lấn trước mặt NTT; kênh chủ động là PG đọc khi quét + MC.
 
 ---
 
 ## 4. Test Plan
 
-### 4.1 Đã có — **250 test**, PGlite, chạy trong CI mọi push
+### 4.1 Đã có — **260 test**, PGlite, chạy trong CI mọi push
 
 | Bộ test | Test | Chứng minh |
 |---|---|---|
@@ -234,7 +235,8 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 | **xlsx-lite** | **8** | Zip round-trip · tiếng Việt nguyên vẹn theo cấu trúc · số là ô số |
 | **email** | **13** | QR đính kèm qua cid, không hotlink · escape HTML · Resend protocol, lỗi không throw |
 | **clone-event** | **10** | Copy cấu hình đúng · lịch sử không bao giờ theo · clone sinh ra đóng |
-| **Tổng** | **250** | |
+| **surveys** | **10** | Trần 8 câu là constraint · badge cùng transaction, đủ 4 mode · sửa 11:00 không hỏng response 10:59 |
+| **Tổng** | **260** | |
 
 **Giới hạn đã biết:** PGlite chạy 1 kết nối → chứng minh *logic*, chưa chứng minh *đồng thời*.
 

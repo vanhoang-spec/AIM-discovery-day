@@ -187,6 +187,17 @@ export async function seedStudentsDev(pg) {
     insert into special_slots (event_id, special_activity_id, slot_no)
     select 1, 1, n from generate_series(1, 5) n
     on conflict do nothing;
+
+    -- One demo survey on the Techcombank booth (survey completes → badge,
+    -- per the booth's badge_award_mode below).
+    insert into surveys (id, event_id, checkpoint_id, title, intro, accent_hex,
+                         is_active, questions) values
+      (1, 1, 2, 'Techcombank hỏi nhanh 3 câu', 'Dưới 1 phút — tặng 1 badge.', '#E30016', true,
+       '[{"id":"q_biet","type":"choice","label":"Bạn đã biết Techcombank trước sự kiện chưa?","options":["Rồi","Chưa"],"required":true},
+         {"id":"q_quan_tam","type":"multi","label":"Bạn quan tâm sản phẩm nào?","options":["Thẻ sinh viên","Tài khoản số đẹp","Vay du học"]},
+         {"id":"q_diem","type":"scale","label":"Trải nghiệm tại booth hôm nay?","required":true}]')
+    on conflict do nothing;
+    update checkpoints set badge_award_mode = 'either' where id = 2 and event_id = 1;
   `);
 
   // Seeds insert explicit ids, which do NOT advance the serial sequences —
@@ -200,7 +211,7 @@ export async function seedStudentsDev(pg) {
                    false)`,
   );
   for (const table of ['ref_schools', 'zones', 'checkpoints', 'gift_tiers',
-                       'special_activities', 'pg_staff', 'pg_devices', 'editions']) {
+                       'special_activities', 'pg_staff', 'pg_devices', 'editions', 'surveys']) {
     await pg.query(
       `select setval(pg_get_serial_sequence($1, 'id'),
                      (select coalesce(max(id), 0) + 1 from ${table}), false)`,

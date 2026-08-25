@@ -401,3 +401,62 @@ a { color: var(--accent); }
   padding: 10px 14px; border-radius: 10px; margin: 4px 0 12px;
 }
 .gold-banner .admin-btn { background: var(--paper); }
+
+/* ---- /khao-sat — sponsor surveys ---- */
+.sv-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.sv-card {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  width: 100%; text-align: left; padding: 14px; background: var(--surface);
+  border: 1px solid var(--line-soft); border-radius: 12px; cursor: pointer;
+  color: var(--ink); font-size: 15px;
+}
+.sv-card:disabled { opacity: 0.6; cursor: default; }
+.sv-card b { display: block; }
+.sv-card small { color: var(--ink-3); }
+.sv-tag {
+  font-size: 12.5px; font-weight: 700; color: var(--accent); white-space: nowrap;
+}
+.sv-tag.done { color: var(--ok); }
+.sv-q { margin: 18px 0; }
+.sv-label { font-weight: 600; margin: 0 0 8px; }
+.sv-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.sv-opt {
+  padding: 10px 16px; border: 1.5px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--ink); font-size: 14.5px; font-weight: 600;
+  cursor: pointer; min-height: 44px;
+}
+.sv-opt.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.sv-scale { min-width: 48px; }
+.ghost-btn {
+  display: block; width: 100%; margin-top: 10px; padding: 12px;
+  background: none; border: 1px solid var(--line); border-radius: 10px;
+  color: var(--ink-2); font-size: 14px; cursor: pointer;
+}
+.sv-complete {
+  text-align: center; padding: 28px 16px; background: var(--surface);
+  border: 1px solid var(--line-soft); border-radius: 14px; margin-bottom: 14px;
+  position: relative;
+}
+.sv-pulse {
+  width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 50%;
+  border: 4px solid var(--ok); position: relative;
+}
+.sv-pulse::after {
+  content: '✓'; position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; font-size: 30px; color: var(--ok); font-weight: 700;
+}
+.sv-pulse::before {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%;
+  border: 4px solid var(--ok); opacity: 0.5;
+  animation: sv-ring 1.6s ease-out infinite;
+}
+@keyframes sv-ring {
+  from { transform: scale(1); opacity: 0.5; }
+  to { transform: scale(1.55); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .sv-pulse::before { animation: none; } }
+.sv-done-title { font-size: 13px; letter-spacing: 0.2em; color: var(--ok); font-weight: 800; margin: 0; }
+.sv-done-survey { font-size: 15px; color: var(--ink-2); margin: 4px 0 10px; }
+.sv-done-name { font-size: 22px; font-weight: 700; margin: 0; }
+.sv-done-code { font-family: ui-monospace, monospace; font-size: 20px; letter-spacing: 3px; margin: 4px 0 10px; }
+.sv-done-badge { font-size: 14px; color: var(--ok); font-weight: 600; margin: 0; }
