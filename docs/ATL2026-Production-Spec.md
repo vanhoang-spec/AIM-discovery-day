@@ -178,18 +178,19 @@ Nền tảng: `✅` schema `0003_rewards.sql` + 18 test · `⬜` giao diện
 - **AC18** `⬜` — Given SV đủ điều kiện 1 bậc quà, When mở app trước khi tới quầy, Then thấy rõ "bạn còn thiếu gì" — cập nhật theo badge thật, không phải số tĩnh. Màn này loại ~25% người không đủ điều kiện **trước khi** họ xếp hàng.
 - **AC19** `🟨` — Given 1 bậc quà đã hết kho, When bất kỳ ai submit đổi quà bậc đó, Then **request bị từ chối ở tầng DB** (`UPDATE ... WHERE stock_issued < stock_total` + CHECK), và SV-APP hiện "ĐÃ HẾT" ngay khi cạn. *(ràng buộc DB `✅`; thiếu giao diện)*
 - **AC20** `🟨` — Given 2 quầy thao tác đổi quà cùng lúc cho cùng 1 SV cùng 1 bậc, When cả hai submit gần như đồng thời, Then chỉ **đúng 1** giao dịch thành công. *(unique index + hoàn kho khi conflict `✅`; test tranh chấp đa kết nối xem T2)*
-- **AC21** `⬜` — Given mất mạng tại quầy, When supervisor kích hoạt break-glass, Then yêu cầu PIN supervisor + ghi vào **vòng tay giấy phân màu theo bậc** (không phải dấu mực — mực nhoè sau 20 phút mồ hôi ngoài sân), và mọi giao dịch đánh dấu để đối soát sau (xem AC26).
+- **AC21** `🟨` — Given mất mạng tại quầy quà, Then /qua hiện cảnh báo chuyển hẳn sang luồng giấy: giám sát + **vòng tay giấy phân màu theo bậc** (không phải dấu mực — mực nhoè sau 20 phút mồ hôi), nhập lại qua màn Đối soát (AC26).
+  *Quyết định có chủ đích: KHÔNG build hàng đợi offline cho phát quà. App ghi nhận offline tạo cảm giác an toàn giả — hai quầy offline vẫn có thể cùng phát cuốn sổ cuối; vật kiểm soát thật là vòng tay. PIN supervisor để bật chế độ cũng bỏ theo — chế độ giấy không cần app cho phép.*
 
 ### 3.6 Hoạt động đặc biệt — luồng online bắt buộc
-- **AC22** `🟨` — Given cap N suất, When SV giữ chỗ, Then giữ tối đa 90 giây rồi tự nhả nếu không xác nhận (2-phase hold), và tổng suất phát ra **không bao giờ vượt N**. *(`hold_special_slot` / `confirm_special_slot` trên slot pre-allocated `✅`)*
+- **AC22** `✅` — Given cap N suất, When SV giữ chỗ, Then giữ tối đa 90 giây rồi tự nhả nếu không xác nhận (2-phase hold), và tổng suất phát ra **không bao giờ vượt N**. *(`hold_special_slot`/`confirm_special_slot` `✅` + màn /suat trên app PG: quét/gõ → điều kiện đọc THANG CORE kèm câu giải thích → GIỮ CHỖ với đồng hồ 90s → XÁC NHẬN → số suất to để đọc. Retry một confirm đã xong trông như thành công, không phải lỗi.)*
 - **AC23** *(test bắt buộc — xem T1)* — 500 client giả lập tranh 200 suất → đúng 200 thành công, **10/10 lần** trên Supabase thật.
-- **AC24** `⬜` — Given mất mạng tại điểm hoạt động đặc biệt, Then chuyển hẳn sang sổ vé giấy đánh số của supervisor; app hiện rõ trạng thái "chế độ giấy" để PG không cố quét.
+- **AC24** `✅` — Given mất mạng tại điểm hoạt động đặc biệt, Then /suat chuyển thành **màn CHẾ ĐỘ GIẤY toàn màn hình** — không phải banner cảnh báo: 4 bước sổ vé đánh số, không có nút quét nào còn bấm được. App nửa-chạy-offline ở quầy này là app hứa thừa suất trước mặt NTT; app từ chối to thì không.
 
 ### 3.7 Đối soát & báo cáo (ADMIN) — `⬜` giao diện
 - **AC25** `🟨` — *(dashboard /admin đã hiện: drift tile, hàng đợi + sync từng máy PG — còn thiếu màn nhập vé giấy)* Given hết giờ sự kiện, When supervisor mở màn đối soát, Then thấy: hàng đợi từng máy PG đã xả về 0 chưa, số giao dịch break-glass cần nhập tay, và view tự phát hiện lệch số. *(`v_progress_drift` `✅` trong `0002_ledger.sql`)*
-- **AC26** `⬜` — Given giao dịch break-glass đã ghi giấy, When supervisor nhập lại sau sự kiện, Then merge vào cùng ledger, đánh dấu nguồn `manual_reconciliation` — không ghi đè, không tạo trùng.
-- **AC27** `⬜` 🔒 — Given cần xuất báo cáo cho 1 NTT cụ thể, When admin xuất Excel, Then file **mặc định không chứa email/SĐT** — chỉ gồm SV đã tick đồng ý chia sẻ với NTT; multi-sheet: attendance theo giờ, badge theo zone, phễu ngưỡng quà, survey (kèm % hoàn thành so với quà thực phát), nhật ký Giờ Vàng. *Chờ xác nhận pháp lý phạm vi chia sẻ.*
-- **AC28** `⬜` — Given cần chạy Grand Finale 01/11, When admin nhân bản sự kiện, Then 1 thao tác copy toàn bộ cấu hình (zone, checkpoint, ngưỡng, mẫu email) sang `event_id` mới — không sửa code, không deploy lại.
+- **AC26** `✅` — Given giao dịch break-glass đã ghi giấy, When supervisor nhập lại ở tab Đối soát, Then bản ghi đi qua **đúng hàm của quầy thật** (`claim_gift_tier` với `was_offline=true`, hold+confirm cho suất) — không ghi đè, không insert thô. Vé trùng hoặc vượt kho bị **từ chối kèm hướng xử lý** ("vé giấy trùng, kiểm tra lại sổ") — 409 ở màn này là tính năng: đó là cách bắt lỗi sổ giấy. Kèm cảnh báo máy PG còn hàng đợi chưa xả trước khi chốt sổ.
+- **AC27** `🟨` 🔒 — Given cần xuất báo cáo cho 1 NTT cụ thể, When admin bấm "Excel NTT" trên dòng gian hàng, Then file chỉ gồm SV **đã tick đồng ý chia sẻ VÀ đã ghé đúng gian hàng đó** — người khác không xuất hiện dưới bất kỳ dạng nào, kể cả ẩn danh; 3 sheet: tổng quan, lượt ghé theo giờ, danh sách liên hệ đã đồng ý. Posture ngược với AC33 (nội bộ, đủ PII) — hai route riêng, không bao giờ gộp. *Sheet survey chờ Track 3. Vẫn 🔒 pháp lý xác nhận phạm vi chia sẻ trước khi GIAO file thật cho NTT.*
+- **AC28** `✅` — Given cần chạy Grand Finale 01/11, When admin điền form nhân bản (tab Cấu hình), Then MỘT thao tác copy toàn bộ cấu hình — zone, checkpoint (giờ tự dịch theo chênh lệch ngày), bậc quà, suất, ngưỡng — sang `event_id` mới. **Không copy**: người, lịch sử, kho đã phát, và trạng thái mở đăng ký — bản sao sinh ra ĐÓNG, mở là quyết định riêng. *(`clone_event` 0009, 10 test — gồm bài "clone của clone".)*
 
 ### 3.8 Cấu hình vận hành (không cứng trong code)
 Ba tham số sau **phải** là dữ liệu theo `event_id`. Cột đã có; thiếu giao diện admin.
@@ -215,7 +216,7 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 
 ## 4. Test Plan
 
-### 4.1 Đã có — **240 test**, PGlite, chạy trong CI mọi push
+### 4.1 Đã có — **250 test**, PGlite, chạy trong CI mọi push
 
 | Bộ test | Test | Chứng minh |
 |---|---|---|
@@ -232,7 +233,8 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 | **golden-hours** | **18** | 3 nắp không thể vượt · thưởng không thể nhân đôi · replay an toàn · ngân sách ngày là hard stop |
 | **xlsx-lite** | **8** | Zip round-trip · tiếng Việt nguyên vẹn theo cấu trúc · số là ô số |
 | **email** | **13** | QR đính kèm qua cid, không hotlink · escape HTML · Resend protocol, lỗi không throw |
-| **Tổng** | **240** | |
+| **clone-event** | **10** | Copy cấu hình đúng · lịch sử không bao giờ theo · clone sinh ra đóng |
+| **Tổng** | **250** | |
 
 **Giới hạn đã biết:** PGlite chạy 1 kết nối → chứng minh *logic*, chưa chứng minh *đồng thời*.
 

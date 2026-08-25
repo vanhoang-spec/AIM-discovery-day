@@ -422,6 +422,43 @@ function Config({ api, actor }) {
       <p className="muted">
         Tăng ngưỡng sẽ hiện trước số SV bị ảnh hưởng để xác nhận. Quyền lợi đã cấp không bao giờ bị thu hồi.
       </p>
+
+      <h3>Nhân bản sự kiện (Grand Finale / mùa sau)</h3>
+      <p className="muted">
+        Copy toàn bộ cấu hình — zone, hoạt động, bậc quà, suất, ngưỡng. KHÔNG copy
+        người và lịch sử; sự kiện mới sinh ra ở trạng thái <b>đóng đăng ký</b>.
+      </p>
+      <form className="admin-form-col" onSubmit={async (ev) => {
+        ev.preventDefault();
+        const f = ev.target;
+        setMsg(null);
+        try {
+          const r = await api('/api/admin/clone', {
+            method: 'POST',
+            body: JSON.stringify({
+              source_event: EVENT_ID, actor,
+              slug: f.slug.value, name: f.evname.value,
+              venue: f.venue.value, city: f.city.value,
+              starts_at: f.date.value + 'T08:00:00+07:00',
+              ends_at: f.date.value + 'T17:00:00+07:00',
+            }),
+          });
+          setMsg({ bad: false, text:
+            `Đã tạo sự kiện #${r.new_event_id}: ${r.zones_copied} zone, ${r.checkpoints_copied} hoạt động, ${r.tiers_copied} bậc quà, ${r.specials_copied} hoạt động đặc biệt.` });
+          f.reset();
+        } catch (e2) { setMsg({ bad: true, text: e2.message }); }
+      }}>
+        <div className="admin-form-row">
+          <input className="admin-input" name="slug" placeholder="slug (vd: grand-finale)" required />
+          <input className="admin-input" name="evname" placeholder="Tên sự kiện" required />
+        </div>
+        <div className="admin-form-row">
+          <input className="admin-input" name="venue" placeholder="Địa điểm" required />
+          <input className="admin-input" name="city" placeholder="Thành phố" required />
+          <input className="admin-input" name="date" type="date" required />
+        </div>
+        <button className="admin-btn admin-btn-primary" type="submit">Nhân bản</button>
+      </form>
     </div>
   );
 }
@@ -482,6 +519,22 @@ function Checkpoints({ api, actor }) {
               <td>{c.counts_toward_badges ? '✓' : '—'}</td>
               <td>{c.is_active ? '✓' : 'tắt'}</td>
               <td className="admin-row-actions">
+                {(c.kind === 'sponsor_booth' || c.kind === 'diamond_booth') && (
+                  <button type="button" className="admin-btn" title="Excel cho nhà tài trợ này"
+                    onClick={async () => {
+                      const res = await fetch(
+                        `/api/admin/export-ntt?event=${EVENT_ID}&checkpoint=${c.id}`,
+                        { headers: { Authorization: `Bearer ${localStorage.getItem('atl_admin_key')}` } });
+                      if (!res.ok) return;
+                      const blob = await res.blob();
+                      const a = document.createElement('a');
+                      a.href = URL.createObjectURL(blob);
+                      a.download = (res.headers.get('content-disposition') ?? '')
+                        .match(/filename="([^"]+)"/)?.[1] ?? 'NTT.xlsx';
+                      a.click();
+                      URL.revokeObjectURL(a.href);
+                    }}>Excel NTT</button>
+                )}
                 <button type="button" className="admin-btn" onClick={() =>
                   setDraft({ id: c.id, name: c.name, description: c.description ?? '',
                              location_hint: c.location_hint ?? '',
@@ -545,6 +598,127 @@ function Checkpoints({ api, actor }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------------- Đối soát (AC26) ---------------- */
+
+function Reconcile({ api, actor }) {
+  const [data, setData] = useState(null);
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState([]);
+  const [sv, setSv] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const debounce = useRef(null);
+
+  const load = useCallback(async () => {
+    setData(await api(`/api/admin/reconcile?event=${EVENT_ID}`));
+  }, [api]);
+  useEffect(() => { load().catch((e) => setMsg({ bad: true, text: e.message })); }, [load]);
+
+  const search = (text) => {
+    clearTimeout(debounce.current);
+    debounce.current = setTimeout(async () => {
+      if (!text.trim()) { setHits([]); return; }
+      const d = await api(`/api/admin/students?event=${EVENT_ID}&q=${encodeURIComponent(text)}`);
+      setHits(d.students);
+    }, 250);
+  };
+
+  const enter = async (body) => {
+    setMsg(null);
+    try {
+      const r = await api('/api/admin/reconcile', {
+        method: 'POST',
+        body: JSON.stringify({ event: EVENT_ID, actor, student_id: sv.id, ...body }),
+      });
+      setMsg({ bad: false, text: r.gift ? `Đã ghi: ${r.gift} (kho còn ${r.remaining})`
+                                        : `Đã ghi: suất số ${r.slot_no}` });
+      load();
+    } catch (e) {
+      // 409s here are the FEATURE: a refused paper entry is a caught
+      // double-entry, not a failure.
+      setMsg({ bad: true, text: e.message });
+    }
+  };
+
+  if (!data) return <p className="muted">Đang tải…</p>;
+
+  return (
+    <div>
+      <p className="muted">
+        Nhập vé giấy sau sự kiện. Mọi bản ghi đi qua đúng hàm của quầy thật —
+        vé trùng hoặc vượt kho sẽ bị <b>từ chối và báo rõ</b>, đó là cách bắt lỗi sổ giấy.
+      </p>
+
+      {data.pending_queues.length > 0 && (
+        <p className="admin-alert">
+          ⚠️ {data.pending_queues.length} máy PG còn hàng đợi chưa xả:
+          {' '}{data.pending_queues.map((d) => `${d.label} (${d.queue_depth})`).join(', ')}.
+          Xả hết queue trước khi chốt sổ.
+        </p>
+      )}
+
+      <div className="admin-two-col">
+        <div>
+          <input className="admin-input" placeholder="Tìm SV: tên · SĐT · MSSV · mã"
+            value={q} onChange={(e) => { setQ(e.target.value); search(e.target.value); }} />
+          <ul className="admin-hits">
+            {hits.map((h) => (
+              <li key={h.id}>
+                <button type="button" onClick={() => { setSv(h); setMsg(null); }}>
+                  <b>{h.full_name}</b>
+                  <span>{h.lookup_code} · {h.badge_count} badge ({h.core_badge_count} hoạt động)</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {sv && (
+          <div className="admin-detail">
+            <h4>{sv.full_name} <span className="muted">· {sv.lookup_code}</span></h4>
+            <div className="admin-form-row">
+              <select className="admin-input" id="rec-tier" defaultValue={data.tiers[0]?.id}>
+                {data.tiers.map((t2) => (
+                  <option key={t2.id} value={t2.id}>Bậc {t2.tier} — {t2.gift_name}</option>
+                ))}
+              </select>
+              <button type="button" className="admin-btn admin-btn-primary" onClick={() =>
+                enter({ type: 'gift', tier_id: Number(document.getElementById('rec-tier').value) })
+              }>Nhập vé quà</button>
+            </div>
+            <div className="admin-form-row">
+              <select className="admin-input" id="rec-act" defaultValue={data.activities[0]?.id}>
+                {data.activities.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              <button type="button" className="admin-btn admin-btn-primary" onClick={() =>
+                enter({ type: 'special', activity_id: Number(document.getElementById('rec-act').value) })
+              }>Nhập vé suất</button>
+            </div>
+            {msg && <p className={msg.bad ? 'admin-err' : 'admin-ok'}>{msg.text}</p>}
+          </div>
+        )}
+      </div>
+
+      <h3>Đã nhập từ giấy ({data.paper.length})</h3>
+      <table className="admin-table">
+        <thead><tr><th>Lúc</th><th>SV</th><th>Quà</th><th>Người nhập</th></tr></thead>
+        <tbody>
+          {data.paper.map((r, i) => (
+            <tr key={i}>
+              <td>{t(r.redeemed_at)}</td>
+              <td>{r.full_name} <span className="muted">({r.lookup_code})</span></td>
+              <td>Bậc {r.tier} — {r.gift_name}</td>
+              <td>{r.staff_id}</td>
+            </tr>
+          ))}
+          {data.paper.length === 0 && (
+            <tr><td colSpan={4} className="muted">Chưa có bản ghi giấy nào.</td></tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -617,7 +791,8 @@ export default function AdminPage() {
       </header>
       <nav className="admin-tabs">
         {[['overview', 'Tổng quan'], ['students', 'Sinh viên'],
-          ['config', 'Cấu hình'], ['checkpoints', 'Hoạt động']].map(([id, label]) => (
+          ['config', 'Cấu hình'], ['checkpoints', 'Hoạt động'],
+          ['reconcile', 'Đối soát']].map(([id, label]) => (
           <button
             key={id} type="button"
             className={tab === id ? 'tab on' : 'tab'}
@@ -629,6 +804,7 @@ export default function AdminPage() {
       {tab === 'students' && <Students api={api} actor={actor} />}
       {tab === 'config' && <Config api={api} actor={actor} />}
       {tab === 'checkpoints' && <Checkpoints api={api} actor={actor} />}
+      {tab === 'reconcile' && <Reconcile api={api} actor={actor} />}
     </main>
   );
 }
