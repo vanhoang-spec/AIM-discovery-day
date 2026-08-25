@@ -62,12 +62,13 @@ export async function seedDev(pg) {
     on conflict do nothing;
 
     insert into events (id, edition_id, kind, slug, name, venue_name, city,
-                        starts_at, ends_at, token_key_id, is_registration_open)
+                        starts_at, ends_at, token_key_id, is_registration_open,
+                        special_threshold_y)
     values
       (1, 1, 'discovery_day', 'ha-noi', 'Discovery Day — Hà Nội', 'ĐH Ngoại thương Hà Nội',
-       'Hà Nội', '2026-09-12 08:00+07', '2026-09-12 17:00+07', 'dd-2026', true),
+       'Hà Nội', '2026-09-12 08:00+07', '2026-09-12 17:00+07', 'dd-2026', true, 6),
       (2, 1, 'discovery_day', 'ho-chi-minh', 'Discovery Day — TP.HCM', 'ĐH Ngoại thương CS II',
-       'TP.HCM', '2026-09-12 08:00+07', '2026-09-12 17:00+07', 'dd-2026', true)
+       'TP.HCM', '2026-09-12 08:00+07', '2026-09-12 17:00+07', 'dd-2026', true, 6)
     on conflict do nothing;
   `);
 
@@ -169,4 +170,22 @@ export async function seedStudentsDev(pg) {
       );
     }
   }
+
+  // The locked thresholds (§1.4): 2/5/7, y = 6 — so /toi shows a real ladder
+  // in dev. Small stocks so the 'low'/'out' states are reachable by hand.
+  await pg.exec(`
+    insert into gift_tiers (event_id, tier, required_badges, gift_name, stock_total) values
+      (1, 1, 2, 'Bút chì Cannes Lions', 30),
+      (1, 2, 5, 'Sổ tay ATL2026',       10),
+      (1, 3, 7, 'Áo thun Discovery Day', 5)
+    on conflict do nothing;
+
+    insert into special_activities (id, event_id, name, capacity, is_open)
+    values (1, 1, 'Meet & Greet khách mời', 5, true)
+    on conflict do nothing;
+
+    insert into special_slots (event_id, special_activity_id, slot_no)
+    select 1, 1, n from generate_series(1, 5) n
+    on conflict do nothing;
+  `);
 }

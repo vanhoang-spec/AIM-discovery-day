@@ -299,3 +299,33 @@ a { color: var(--accent); }
 .crowd-high { background: var(--bad-soft); color: var(--bad); }
 .agenda-foot { margin: 26px 0 12px; }
 .agenda-foot a { color: var(--accent); font-weight: 600; text-decoration: none; }
+
+/* ---- /toi — progress block ---- */
+.progress {
+  margin: 18px 0 14px; background: var(--surface);
+  border: 1px solid var(--line-soft); border-radius: 12px; padding: 14px;
+}
+.progress-head { display: flex; align-items: baseline; gap: 8px; }
+.progress-count { font-size: 34px; font-weight: 800; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+.progress-label { font-size: 15px; font-weight: 600; color: var(--ink-2); }
+.progress-stamp { margin-left: auto; font-size: 12px; color: var(--ink-3); }
+.progress-next { margin: 10px 0 4px; font-size: 15px; }
+.tier-list { list-style: none; margin: 10px 0 0; padding: 0; }
+.tier {
+  display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center;
+  padding: 10px 8px; border-top: 1px solid var(--line-soft); font-size: 14px;
+}
+.tier-req {
+  width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: var(--surface-2); color: var(--ink-2);
+}
+.tier-name { font-weight: 600; }
+.tier-state { font-size: 12.5px; color: var(--ink-3); text-align: right; }
+.tier-ready .tier-req { background: var(--ok); color: #fff; }
+.tier-ready .tier-state { color: var(--ok); font-weight: 700; }
+.tier-done .tier-req { background: var(--ok-soft); color: var(--ok); }
+.tier-done .tier-state { color: var(--ok); }
+.tier-out .tier-state { color: var(--bad); font-weight: 700; }
+.tier-out .tier-name { color: var(--ink-3); text-decoration: line-through; }
+.progress-note { font-size: 12.5px; margin: 8px 2px 0; }
