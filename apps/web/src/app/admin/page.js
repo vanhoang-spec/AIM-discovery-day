@@ -40,9 +40,21 @@ const t = (iso) => iso ? new Date(iso).toLocaleTimeString('vi-VN', { hour12: fal
 
 /* ---------------- Tổng quan ---------------- */
 
-function Overview({ api }) {
+function Overview({ api, actor }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
+  const [gMsg, setGMsg] = useState(null);
+
+  const goldenAct = async (body) => {
+    setGMsg(null);
+    try {
+      await api('/api/admin/golden', {
+        method: 'POST',
+        body: JSON.stringify({ event: EVENT_ID, actor, ...body }),
+      });
+      setGMsg(null);
+    } catch (e) { setGMsg(e.message); }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -60,7 +72,8 @@ function Overview({ api }) {
   if (err) return <p className="admin-err">Lỗi tải dashboard: {err}</p>;
   if (!data) return <p className="muted">Đang tải…</p>;
 
-  const { totals, zones, tiers, special, devices, drift, threshold_check: tc } = data;
+  const { totals, zones, tiers, special, devices, drift, threshold_check: tc, golden } = data;
+  const goldenActive = golden?.active;
   const maxScan = Math.max(1, ...zones.map((z) => z.scans_15m));
 
   return (
@@ -84,9 +97,22 @@ function Overview({ api }) {
         </p>
       )}
 
+      {goldenActive && (
+        <div className="gold-banner">
+          <span>
+            ⚡ <b>GIỜ VÀNG — {golden.zone_name}</b> · còn {Math.ceil(golden.seconds_left / 60)} phút
+            · đã phát {golden.badges_issued}/{golden.badge_cap}
+            · ngân sách ngày còn {golden.budget_left}
+          </span>
+          <button type="button" className="admin-btn"
+            onClick={() => goldenAct({ action: 'close' })}>Đóng sớm</button>
+        </div>
+      )}
+      {gMsg && <p className="admin-err">{gMsg}</p>}
+
       <h3>Khu vực — 15 phút gần nhất</h3>
       <table className="admin-table">
-        <thead><tr><th>Zone</th><th>Lượt quét</th><th>Badge</th><th></th></tr></thead>
+        <thead><tr><th>Zone</th><th>Lượt quét</th><th>Badge</th><th></th><th></th></tr></thead>
         <tbody>
           {zones.map((z) => (
             <tr key={z.id}>
@@ -96,10 +122,24 @@ function Overview({ api }) {
               <td className="bar-cell">
                 <div className="bar" style={{ width: `${(z.scans_15m / maxScan) * 100}%` }} />
               </td>
+              <td>
+                <button type="button" className="admin-btn" disabled={goldenActive}
+                  title={goldenActive ? 'Đang có một Giờ Vàng chạy' : 'Mở ×2 tại zone này 40 phút'}
+                  onClick={() => {
+                    if (window.confirm(`Mở Giờ Vàng ×2 tại "${z.name}" trong 40 phút (nắp 80 badge)?
+Nhớ báo MC và cắm biển zone.`)) {
+                      goldenAct({ action: 'activate', zone_id: z.id });
+                    }
+                  }}>⚡</button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <p className="muted" style={{ marginTop: -10 }}>
+        ⚡ = mở Giờ Vàng ×2 (40 phút · nắp 80 · ngân sách ngày {golden ? golden.golden_budget : 300}).
+        Kênh báo sinh viên là MC + biển zone + PG đọc khi quét — app SV không nhận thông báo đẩy.
+      </p>
 
       <h3>Phễu quà</h3>
       <table className="admin-table">
@@ -585,7 +625,7 @@ export default function AdminPage() {
           >{label}</button>
         ))}
       </nav>
-      {tab === 'overview' && <Overview api={api} />}
+      {tab === 'overview' && <Overview api={api} actor={actor} />}
       {tab === 'students' && <Students api={api} actor={actor} />}
       {tab === 'config' && <Config api={api} actor={actor} />}
       {tab === 'checkpoints' && <Checkpoints api={api} actor={actor} />}

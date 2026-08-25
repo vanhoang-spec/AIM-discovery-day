@@ -22,7 +22,7 @@ export async function GET(request) {
   const eventId = Number(new URL(request.url).searchParams.get('event') ?? 1);
   const db = await getDb();
 
-  const [totals, zones, tiers, special, devices, drift, threshold] = await Promise.all([
+  const [totals, zones, tiers, special, devices, drift, threshold, golden] = await Promise.all([
     // Registered / checked-in / badge funnel — all from registrations.
     db.query(
       `select count(*)::int                                   as registered,
@@ -72,6 +72,9 @@ export async function GET(request) {
       [eventId],
     ),
     db.query(`select * from v_special_threshold_check where event_id = $1`, [eventId]),
+    db.query(
+      `select * from v_golden_status where event_id = $1
+        order by golden_id desc limit 1`, [eventId]),
   ]);
 
   return Response.json(
@@ -85,6 +88,7 @@ export async function GET(request) {
       devices: devices.rows,
       drift: drift.rows[0].drifted,
       threshold_check: threshold.rows[0] ?? null,
+      golden: golden.rows[0] ?? null,
     },
     { headers: { 'Cache-Control': 'private, no-store' } },
   );

@@ -16,6 +16,7 @@ const K = {
   roster: 'roster',
   rosterVersion: 'roster_version',
   checkpoint: 'active_checkpoint',
+  golden: 'golden_status',
 };
 
 let queue;
@@ -42,6 +43,10 @@ export function getQueue() {
         });
         if (!res.ok) throw new Error(`sync ${res.status}`);
         const data = await res.json();
+        // Giờ Vàng status rides the sync response; stash it for the banner.
+        if (data.golden_status !== undefined) {
+          kv.set(K.golden, data.golden_status).catch(() => {});
+        }
         return data.results;
       },
     });
@@ -63,6 +68,7 @@ export const setSession = (s) => kv.set(K.session, s);
 export const clearSession = () => kv.delete(K.session);
 
 export const getActiveCheckpoint = () => kv.get(K.checkpoint);
+export const getGoldenStatus = () => kv.get(K.golden);
 export const setActiveCheckpoint = (cp) => kv.set(K.checkpoint, cp);
 
 export const getRoster = async () => (await kv.get(K.roster)) ?? [];

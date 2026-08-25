@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import { verifyToken, importKey, normaliseLookupCode } from '@atl/qr-token';
 import {
   getQueue, getSession, getRoster, getActiveCheckpoint, setActiveCheckpoint, refreshRoster,
+  getGoldenStatus,
 } from '@/lib/session';
 import { startScanner, feedback, holdWakeLock, IDLE_PAUSE_MS } from '@/lib/scanner';
 
@@ -25,6 +26,7 @@ const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
 
 export default function ScanPage() {
   const router = useRouter();
+  const [golden, setGolden] = useState(null);
   const videoRef = useRef(null);
   const scannerRef = useRef(null);
   const idleTimer = useRef(null);
@@ -66,6 +68,10 @@ export default function ScanPage() {
         await q.flush().catch(() => {});
         setStats(await q.stats());
       }
+      // Banner data rides sync responses; expire it locally so a device that
+      // stopped syncing never shows a dead golden hour.
+      const g = await getGoldenStatus().catch(() => null);
+      setGolden(g && new Date(g.ends_at) > new Date() ? g : null);
     };
     const flushTimer = setInterval(tick, 5000);
     tick();
@@ -246,6 +252,19 @@ export default function ScanPage() {
         <span>Đang quét: {checkpoint.name}</span>
         <small>đổi ▸</small>
       </button>
+
+      {golden && golden.zone_id === checkpoint.zone_id && (
+        <div className="goldbar">
+          ⚡ GIỜ VÀNG ×2 — zone này đang thưởng thêm 1 badge · còn{' '}
+          {Math.max(1, Math.round((new Date(golden.ends_at) - Date.now()) / 60000))} phút.
+          Nói với sinh viên khi quét!
+        </div>
+      )}
+      {golden && golden.zone_id !== checkpoint.zone_id && (
+        <div className="goldbar dim">
+          ⚡ Giờ Vàng đang chạy ở {golden.zone_name} — hướng sinh viên rảnh sang đó.
+        </div>
+      )}
 
       <div className="camwrap" onClick={() => { if (camera !== 'on') startCamera(); }}>
         <video ref={videoRef} playsInline muted />

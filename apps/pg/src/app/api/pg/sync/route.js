@@ -69,6 +69,7 @@ export async function POST(request) {
         badge_count: row.badge_count,
         student_name: row.student_name,
         early_bird: row.early_bird,
+        golden: row.golden,
       });
     } catch (err) {
       // Report the failure against this scan rather than failing the batch:
@@ -85,5 +86,21 @@ export async function POST(request) {
       [tokenHash, body.queue_depth, body.battery_pct ?? null]).catch(() => {});
   }
 
-  return Response.json({ results, server_now: new Date().toISOString() });
+  // Giờ Vàng status rides along too — no new polling loop on 40 devices. A
+  // device that is scanning IS syncing, so a golden-zone PG stays fresh; the
+  // banner self-expires client-side via ends_at either way.
+  let golden = null;
+  try {
+    const g = await db.query(
+      `select g.zone_id, g.zone_name, g.ends_at, g.badge_cap, g.badges_issued
+         from v_golden_status g
+         join pg_devices d on d.event_id = g.event_id
+        where d.token_hash = $1 and g.active
+        limit 1`,
+      [tokenHash],
+    );
+    golden = g.rows[0] ?? null;
+  } catch { /* status is decorative; a sync must never fail on it */ }
+
+  return Response.json({ results, golden_status: golden, server_now: new Date().toISOString() });
 }

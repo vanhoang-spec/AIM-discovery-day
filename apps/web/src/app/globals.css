@@ -394,3 +394,10 @@ a { color: var(--accent); }
 .link-danger { background: none; border: none; color: var(--bad); cursor: pointer; font-size: 13px; padding: 0; }
 .admin-err { color: var(--bad); font-weight: 600; }
 .admin-ok { color: var(--ok); font-weight: 600; }
+
+.gold-banner {
+  display: flex; align-items: center; gap: 12px; justify-content: space-between;
+  background: var(--accent); color: var(--accent-ink); font-size: 14px;
+  padding: 10px 14px; border-radius: 10px; margin: 4px 0 12px;
+}
+.gold-banner .admin-btn { background: var(--paper); }

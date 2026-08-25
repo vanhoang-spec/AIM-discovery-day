@@ -166,8 +166,9 @@ Nền tảng: `✅` schema `0004_registration.sql` · `✅` form `/dang-ky` · `
 - **AC14b** `✅` — Given SV mở /toi, When máy có mạng, Then thấy: số badge + "Cập nhật HH:MM", còn thiếu mấy badge tới bậc kế, bậc nào **ĐÃ HẾT** (chỉ ok/low/out — không bao giờ hiện số kho chính xác), và điều kiện hoạt động đặc biệt đọc **thang core** kèm câu giải thích. Auth = chính token QR (HMAC), không session. Poll 30s chỉ khi tab hiện. Mất mạng → QR vẫn render từ cache trước, kèm snapshot tiến độ cuối có giờ.
 - **AC15** `🟨` — Given PG quét badge tại bàn thoát của 1 checkpoint, When SV chưa có badge zone này, Then cấp 1 badge; **unique index chặn** SV có 2 badge cùng 1 checkpoint dù 2 PG quét cùng lúc. *(ràng buộc DB `✅` trong `0002_ledger.sql`)*
 - **AC16** — Given PG bật "chế độ quà khảo sát" tại zone tư vấn, When quét, Then vừa cấp badge vừa đánh dấu `survey_completed = true` **trong cùng một transaction**.
-- **AC17** — Given zone đang rảnh, When supervisor bấm "Giờ Vàng" cho zone đó, Then chỉ SV **đã check-in và chưa có badge zone đó** thấy banner "badge ×2 trong 40 phút"; tự tắt khi hết 40 phút **HOẶC** phát đủ 80 badge **HOẶC** hết ngân sách ngày (300) — **3 nắp an toàn đều là điều kiện DB, không phải hẹn giờ ở client**.
-  Badge thưởng ghi thành **dòng riêng** (`kind = 'bonus'`), **không nhân số đếm** — nhân đôi sẽ phá bất biến "một checkpoint = một badge" đang được unique index bảo vệ.
+- **AC17** `✅` — Given zone đang rảnh, When supervisor bấm ⚡ trong tab Tổng quan, Then mọi badge **booth** được cấp tại zone đó kèm thêm 1 badge thưởng; tự tắt khi hết 40 phút **HOẶC** phát đủ 80 badge **HOẶC** hết ngân sách ngày (300) — **3 nắp đều là predicate DB trong `record_pg_scan`, không phải hẹn giờ client** (migration `0008`, 18 test).
+  Badge thưởng là **dòng riêng trên checkpoint `bonus` theo zone** — không nhân số đếm (bất biến "một checkpoint = một badge" giữ nguyên), mỗi SV tối đa 1 thưởng/zone/ngày nhờ đúng unique index đó, đếm **thang quà** và không đếm thang đặc biệt (§1.5). uid thưởng suy ra từ uid gốc nên batch replay không nhân đôi.
+  **Kênh báo SV đã đổi so với v1.0: KHÔNG banner trong app SV** — bắn thông báo cho 2.000 người để phát 80 badge tạo đúng cơn dồn cục mà tính năng này sinh ra để giải quyết. Kênh: MC + biển zone + banner trên máy PG (đi ké response sync, không tạo nhịp mạng mới) + PG đọc một câu khi quét.
 
 ### 3.5 Quầy đổi quà (PG-APP chế độ quầy + SV-APP)
 Nền tảng: `✅` schema `0003_rewards.sql` + 18 test · `⬜` giao diện
@@ -212,7 +213,7 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 
 ## 4. Test Plan
 
-### 4.1 Đã có — **211 test**, PGlite, chạy trong CI mọi push
+### 4.1 Đã có — **237 test**, PGlite, chạy trong CI mọi push
 
 | Bộ test | Test | Chứng minh |
 |---|---|---|
@@ -226,8 +227,10 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 | registration | 15 | Chống trùng trong transaction, outbox có backoff |
 | **pg-devices** | **28** | Claim thiết bị · phân quyền checkpoint · Early Bird · roster delta |
 | **two-ladders** | **13** | Hai thang đếm (§1.5) · session không lọt thang đặc biệt · watchdog >70% |
+| **golden-hours** | **18** | 3 nắp không thể vượt · thưởng không thể nhân đôi · replay an toàn · ngân sách ngày là hard stop |
+| **xlsx-lite** | **8** | Zip round-trip · tiếng Việt nguyên vẹn theo cấu trúc · số là ô số |
 | **email** | **13** | QR đính kèm qua cid, không hotlink · escape HTML · Resend protocol, lỗi không throw |
-| **Tổng** | **211** | |
+| **Tổng** | **237** | |
 
 **Giới hạn đã biết:** PGlite chạy 1 kết nối → chứng minh *logic*, chưa chứng minh *đồng thời*.
 
