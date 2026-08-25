@@ -1,7 +1,7 @@
 # ATL2026 — Production Spec
 ### Web-app đăng ký, quét badge & tracking Discovery Day / Grand Finale
 
-**Phiên bản:** 1.1 · **Ngày:** 25/08/2026 · **Chủ dự án:** Blue (Phong Nguyen) · **Repo:** `AIM-discovery-day`
+**Phiên bản:** 1.2 · **Ngày:** 26/08/2026 · **Chủ dự án:** Blue (Phong Nguyen) · **Repo:** `AIM-discovery-day`
 **Đối tượng đọc:** dùng làm brief làm việc trực tiếp với Claude Code — mỗi mục AC có thể copy thành 1 task.
 
 ---
@@ -28,6 +28,18 @@ v1.0 được đối chiếu từng mục với repo thật ngày 25/08. Bảy c
 | 6 | **Viết lại §5.1** — bỏ Vercel Git integration | v1.0 nói preview tự deploy qua Git integration, mâu thuẫn với chính cảnh báo ngay dưới nó và với yêu cầu "chỉ deploy khi tôi cho phép" |
 | 7 | **Thêm AC32–AC36** | Ba yêu cầu gốc của AIM trong file DOCX **không có AC nào** (trang lịch, export Excel tổng, CRUD hoạt động); hai AC còn lại do cả hai bản đánh giá độc lập cùng nêu |
 | 8 | **Thêm §3.0 bản đồ AC → hạn → khoá** | v1.0 là backlog phẳng trong khi deadline có hai nhánh |
+
+### 0.2 Đã sửa gì so với v1.1 (26/08 — sau khi nhận Ver02 của AIM)
+
+AIM gửi DOCX Ver02 với 4 điểm mới (đánh dấu xanh). Đối chiếu + chốt trực tiếp với khách:
+
+| # | Nguồn | Thay đổi |
+|---|---|---|
+| 1 | Ver02 §025 ">70% hoạt động mới nhận quà đặc biệt" | **Hai thang đếm badge** — xem §1.5 mới. Mẫu số chốt với khách: 1 check-in + 5–7 booth (N=6–8). Migration `0006`/`0007`, AC37 |
+| 2 | Ver02 §024 "app check-in offline cho ~40 PG" | Đã là thiết kế lõi — AC10–AC13 `✅` |
+| 3 | Ver02 §021 "admin xem real time để điều phối PG" | AC35 giữ nguyên; ghi chú: PG offline ↔ dashboard real time là mâu thuẫn vận hành — dashboard luôn ghi "dữ liệu tính đến HH:MM" |
+| 4 | Ver02 §026 "thông báo đủ điều kiện Meet & Greet (optional)" | AC38 mới, optional đúng như khách ghi |
+| 5 | Trạng thái | AC5 email `✅` (worker + template + cron) · AC32 trang lịch `✅` (2 route tĩnh ISR 60s) · AC14b /toi tiến độ `✅` · test 185 → **211** |
 
 ---
 
@@ -74,6 +86,25 @@ Tính ngược từ **tổng cung 6.025 badge** sau khi áp 4 đòn bẩy miễn
 
 > ⚠️ Hiệu chỉnh lần cuối tại tổng duyệt 10/09 bằng số đo thật: bấm giờ 25 lượt mỗi zone, tính từ lúc SV **bước vào vị trí phục vụ**, không tính thời gian xếp hàng.
 
+### 1.5 Hai thang đếm badge (chốt 25/08, theo Ver02 §025)
+
+Ver02 thêm luật *"quà đặc biệt chỉ dành cho người tham gia >70% hoạt động"*. Mẫu số chốt với AIM: **1 check-in cổng + mỗi booth 1 badge, 5–7 booth → N = 6–8**. ">70%" là câu chính sách; thứ chạy trong hệ thống là **con số tuyệt đối** nó quy ra:
+
+| Số booth | N | >70% quy ra | Trùng với |
+|---|---|---|---|
+| 5–6 | 6–7 | **≥ 5** | đúng ngưỡng bậc 2 |
+| 7 | 8 | **≥ 6** | đúng ngưỡng y |
+
+Hệ quả là **hai thang đếm khác nhau** (migration `0006` + `0007`):
+
+| Thang | Cột | Đếm gì | Vì sao |
+|---|---|---|---|
+| Bậc quà 1/2/3 | `badge_count` | **mọi** badge: booth, cổng, session, lớp, Early Bird, Giờ Vàng | Giữ đòn bẩy session sống; đơn hàng 1.750/430/90 giữ nguyên |
+| Quà đặc biệt / Meet & Greet | `core_badge_count` | **chỉ** cổng + sponsor/diamond booth | Đúng thứ NTT trả tiền: muốn nhận phải đi gần hết gian hàng |
+
+- Checkpoint loại `bonus` (Early Bird, Giờ Vàng) **không bao giờ** vào thang đặc biệt.
+- View `v_special_threshold_check` là chuông báo: NTT rút booth tuần cuối làm y lệch khỏi chính sách >70% thì view hiện mismatch — **chỉ báo, không tự đổi y** (đổi ngưỡng giữa sự kiện là quyết định con người).
+
 ---
 
 ## 2. Actor & phạm vi truy cập
@@ -96,7 +127,7 @@ Deadline có **hai nhánh**, không phải một backlog phẳng.
 
 | Nhánh | AC | Hạn | Bị khoá bởi |
 |---|---|---|---|
-| **Đăng ký** | AC1–AC9, **AC32** | **30/08** | 🔒 danh sách trường (AC1) |
+| **Đăng ký** | AC1–AC9, **AC32** | **30/08** | 🔒 danh sách trường (AC1) · code AC5+AC32 `✅`, còn DNS email |
 | **Vận hành ngày sự kiện** | AC10–AC17 | 09/09 | **không có 🔒 nào** |
 | Quà & suất | AC18–AC24 | 09/09 | *(ngưỡng đã chốt ở §1.4 — hết khoá)* |
 | Đối soát & báo cáo | AC25–AC28, AC33–AC36 | 09/09 | 🔒 pháp lý (chỉ AC27) |
@@ -116,12 +147,12 @@ Nền tảng: `✅` schema `0004_registration.sql` · `✅` form `/dang-ky` · `
 - **AC2** `🟨` — Given đăng ký theo đội thi (2 thành viên), When một thành viên đã có trong đội khác của cùng sự kiện, Then từ chối kèm thông báo rõ lý do bằng tiếng Việt (không phải mã lỗi số). *(hàm `register_team` đã có + test; thiếu giao diện)*
 - **AC3** `✅` — Given form đang điền dở, When người dùng thoát ngang giữa chừng, Then lần quay lại (cùng thiết bị) khôi phục được dữ liệu đã nhập — lưu nháp local, không cần đăng nhập.
 - **AC4** `✅` — Given submit thành công, When trong vòng 1 giây, Then màn hình hiện QR ngay tại chỗ (không chờ email) + mã 6 ký tự in dưới QR + nút "Lưu ảnh mã QR".
-- **AC5** `⬜` — Given submit thành công, When server ghi DB xong, Then đẩy **1 email** (QR đính kèm PNG) vào `notification_outbox` và **trả response ngay** — không block màn hình chờ gửi. Worker gửi nền, có backoff. *(SMS đã bỏ — xem §1.3. Nếu cần bật lại: `events.sms_enabled = true`, không đổi code.)*
+- **AC5** `✅` — Given submit thành công, When server ghi DB xong, Then đẩy **1 email** (QR đính kèm PNG **thật qua cid**, không hotlink — Gmail chặn ảnh remote mặc định) vào `notification_outbox` và **trả response ngay**. Worker `/api/cron/outbox` chạy mỗi phút qua Vercel Cron, claim bằng SKIP LOCKED, retry thuộc riêng outbox (backoff 1→2→4 phút, đỗ `failed` sau 8 lần). *(`packages/email` 13 test; SMS đã bỏ — xem §1.3.)* 🔒 **còn chờ**: domain + DNS SPF/DKIM/DMARC + `RESEND_API_KEY` thật — code xong không có nghĩa email tới inbox.
 - **AC6** `🟨` — Given form trên mạng 4G nghẽn, When submit, Then retry tự động tối đa 3 lần với backoff, hiện trạng thái "đang gửi" rõ ràng, và **bấm nhiều lần không tạo bản trùng** — vì server coi mọi lần submit lại là luồng gửi lại mã. *(client retry `✅`; cần test throttle Slow 3G)*
 - **AC7** `⬜` — Given walk-in tại cổng chưa đăng ký trước, When PG hướng dẫn quét QR trên poster hoặc mở form rút gọn 4 trường (tên, SĐT, trường, MSSV), Then luồng cấp QR giống AC4, hoàn tất dưới 30 giây. Năm trường còn lại thu sau qua email.
 
 ### 3.2 Nhắc lịch (ADMIN → email, tự động)
-- **AC8** `🟨` — Given SV đã đăng ký, When đến D-3, D-1, và 07:00 sáng ngày sự kiện, Then tự gửi email nhắc, throttle ~500 email/giờ, ghi log bounce. *(bảng outbox + `claim_outbox_batch` `✅`; thiếu scheduler và template)*
+- **AC8** `🟨` — Given SV đã đăng ký, When đến D-3, D-1, và 07:00 sáng ngày sự kiện, Then tự gửi email nhắc, throttle ~500 email/giờ, ghi log bounce. *(bảng outbox + `claim_outbox_batch` + worker + template nhắc D-3/D-1/sáng-D `✅`; thiếu: job đẩy hàng loạt vào outbox theo mốc ngày — một câu INSERT có điều kiện, chạy tay hoặc cron)*
 - **AC9** `🟨` — Given một email bounce cứng, When lần gửi tiếp theo tới cùng địa chỉ, Then **không** gửi nữa và đánh dấu để supervisor xử lý tay. *(`finish_outbox` park sau 8 lần thử `✅`; thiếu webhook bounce của Resend)*
 
 ### 3.3 Check-in cổng (PG-APP) — `✅` lõi + giao diện, 28 test schema + 43 test client
@@ -132,6 +163,7 @@ Nền tảng: `✅` schema `0004_registration.sql` · `✅` form `/dang-ky` · `
 
 ### 3.4 Vòng lặp booth (PG-APP + SV-APP) — `⬜`
 - **AC14** — Given SV đang xếp hàng tại 1 zone, When mở app trong lúc chờ, Then thấy: badge đã có, "việc tiếp theo nên làm" theo độ đông zone khác, bản đồ sân, và làm được survey ≤8 câu ngay tại chỗ (nộp khi có sóng). Survey làm trong hàng **không tiêu tốn công suất trạm** — đây là badge duy nhất tăng cung mà không tăng tải.
+- **AC14b** `✅` — Given SV mở /toi, When máy có mạng, Then thấy: số badge + "Cập nhật HH:MM", còn thiếu mấy badge tới bậc kế, bậc nào **ĐÃ HẾT** (chỉ ok/low/out — không bao giờ hiện số kho chính xác), và điều kiện hoạt động đặc biệt đọc **thang core** kèm câu giải thích. Auth = chính token QR (HMAC), không session. Poll 30s chỉ khi tab hiện. Mất mạng → QR vẫn render từ cache trước, kèm snapshot tiến độ cuối có giờ.
 - **AC15** `🟨` — Given PG quét badge tại bàn thoát của 1 checkpoint, When SV chưa có badge zone này, Then cấp 1 badge; **unique index chặn** SV có 2 badge cùng 1 checkpoint dù 2 PG quét cùng lúc. *(ràng buộc DB `✅` trong `0002_ledger.sql`)*
 - **AC16** — Given PG bật "chế độ quà khảo sát" tại zone tư vấn, When quét, Then vừa cấp badge vừa đánh dấu `survey_completed = true` **trong cùng một transaction**.
 - **AC17** — Given zone đang rảnh, When supervisor bấm "Giờ Vàng" cho zone đó, Then chỉ SV **đã check-in và chưa có badge zone đó** thấy banner "badge ×2 trong 40 phút"; tự tắt khi hết 40 phút **HOẶC** phát đủ 80 badge **HOẶC** hết ngân sách ngày (300) — **3 nắp an toàn đều là điều kiện DB, không phải hẹn giờ ở client**.
@@ -165,18 +197,20 @@ Ba tham số sau **phải** là dữ liệu theo `event_id`. Cột đã có; thi
 
 ### 3.9 AC bổ sung — yêu cầu gốc của AIM chưa có trong v1.0
 
-- **AC32** `⬜` **— Trang lịch hoạt động.** Given SV mở link trong email xác nhận, When xem lịch, Then thấy danh sách hoạt động **theo giờ** và **theo khu vực** (2 chế độ xem), có chỉ báo `Đông / Vừa / Vắng`. Một payload chung cache ở edge 60 giây — cùng một object phục vụ cả 2.000 SV, tải origin không phụ thuộc số người dự.
+- **AC32** `✅` **— Trang lịch hoạt động.** Given SV mở link trong email xác nhận, When xem lịch, Then thấy danh sách hoạt động **theo giờ** và **theo khu vực** (2 chế độ xem), có chỉ báo `Đông / Vừa / Vắng`. Đã build thành **hai route tĩnh** `/lich` và `/lich/khu-vuc` ISR 60s (một route + `?xem=` sẽ thành dynamic và mọi SV chạm origin — đúng cái bẫy cần tránh); 0 byte client JS; chip Đông/Vừa/Vắng đọc từ bảng rollup và **chỉ hiện khi có scan thật**.
   > **Thuộc mốc 30/08**, không phải mốc sau: email xác nhận trỏ tới trang này. *(Yêu cầu #3 phía SV trong DOCX gốc — v1.0 không có AC.)*
 - **AC33** `⬜` **— Export Excel tổng cho AIM.** Given admin cần báo cáo nội bộ, When xuất, Then nhận file multi-sheet đầy đủ — khác AC27 vốn chỉ lo phần riêng từng NTT và đã lọc PII. Sinh bằng **job nền**, không sinh đồng bộ trong HTTP request. Dùng `.xlsx` thật, không CSV: Excel bản Việt Nam mở CSV thiếu BOM sẽ hiện `Nguyá»…n VÄƒn A` và khách sẽ báo là "sai dữ liệu". *(Yêu cầu admin #4 trong DOCX gốc.)*
 - **AC34** `⬜` **— CRUD hoạt động.** Given admin cần sửa chương trình, When mở màn quản lý, Then sửa được **tên, mô tả, thời gian** từng hoạt động, cùng zone, sức chứa, và 3 cờ ở AC29–31. *(Yêu cầu admin #5 trong DOCX gốc — AC29–31 chỉ là cờ dữ liệu, không phải màn sửa.)*
 - **AC35** `⬜` **— Dashboard zone nóng/nguội.** Given AIM cần điều phối đám đông, When mở dashboard, Then thấy zone nào đông/vắng theo 15 phút gần nhất, phễu ngưỡng quà, suất đặc biệt còn lại. **Poll 5 giây từ bảng đếm tiền tổng hợp** (`checkpoint_minute_counts`) — tuyệt đối không `COUNT(*)` trên ledger mỗi 5 giây. Kèm nút "gửi thông báo" đẩy SV về zone vắng. *(Yêu cầu admin #3 trong DOCX gốc.)*
 - **AC36** `⬜` **— Tra cứu SV + sửa badge thủ công.** Given PG quét nhầm người, When admin tra cứu SV và sửa, Then thêm/gỡ badge được, **bắt buộc nhập lý do**, ghi `audit_log`, và gỡ badge là **xoá mềm** (`voided_at`) chứ không xoá thật. Không có đường sửa thì sai số nằm lại trong báo cáo NTT vĩnh viễn. *(Cả hai bản đánh giá độc lập đều nêu; `void_attendance` đã có `✅` ở tầng DB.)*
+- **AC37** `✅` **— Hai thang đếm badge** (Ver02 §025, xem §1.5). Given SV có 7 badge tổng nhưng chỉ 2 hoạt động thật (cổng + 1 booth), When giữ suất hoạt động đặc biệt, Then bị từ chối `not_eligible` — giàu thang quà không mua được vé Meet & Greet. Bậc quà 1/2/3 vẫn đếm đủ 7. *(13 test trong `two-ladders.test.js`, gồm cả watchdog >70%.)*
+- **AC38** `⬜` *(optional — đúng chữ Ver02 §026)* **— Thông báo đủ điều kiện Meet & Greet.** Given SV vừa đạt `core_badge_count ≥ y`, When mở /toi lần poll kế, Then hàng "Hoạt động đặc biệt" chuyển "Đủ điều kiện — tới quầy đăng ký" *(phần passive này đã nằm trong AC14b)*. Phần đẩy chủ động (email/push) **không làm**: 60 suất cho ~190 người đủ điều kiện — đẩy thông báo là công thức tạo cảnh chen lấn trước mặt NTT; kênh chủ động là PG đọc khi quét + MC.
 
 ---
 
 ## 4. Test Plan
 
-### 4.1 Đã có — **185 test**, PGlite, chạy trong CI mọi push
+### 4.1 Đã có — **211 test**, PGlite, chạy trong CI mọi push
 
 | Bộ test | Test | Chứng minh |
 |---|---|---|
@@ -189,7 +223,9 @@ Ba tham số sau **phải** là dữ liệu theo `event_id`. Cột đã có; thi
 | rewards | 18 | Thang quà, tồn kho nguyên tử, cấp đúng N |
 | registration | 15 | Chống trùng trong transaction, outbox có backoff |
 | **pg-devices** | **28** | Claim thiết bị · phân quyền checkpoint · Early Bird · roster delta |
-| **Tổng** | **185** | |
+| **two-ladders** | **13** | Hai thang đếm (§1.5) · session không lọt thang đặc biệt · watchdog >70% |
+| **email** | **13** | QR đính kèm qua cid, không hotlink · escape HTML · Resend protocol, lỗi không throw |
+| **Tổng** | **211** | |
 
 **Giới hạn đã biết:** PGlite chạy 1 kết nối → chứng minh *logic*, chưa chứng minh *đồng thời*.
 
