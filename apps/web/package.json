@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@atl/db": "*",
+    "@atl/email": "*",
     "@atl/qr-render": "*",
     "@atl/qr-token": "*",
     "@atl/vn-text": "*",
