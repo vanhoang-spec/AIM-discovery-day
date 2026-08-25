@@ -280,6 +280,7 @@ export default function ScanPage() {
 
       <div className="pad row">
         <button onClick={() => router.push('/tra-cuu')}>TRA CỨU TAY</button>
+        <button onClick={() => router.push('/qua')}>QUẦY QUÀ</button>
         <button className="ghost" onClick={() => router.push('/hang-cho')}>
           HÀNG ĐỢI {stats.unsent > 0 ? `· ${stats.unsent}` : ''}
         </button>
