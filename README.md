@@ -28,8 +28,10 @@ Kế hoạch đầy đủ: xem plan file đã duyệt.
 | **Walk-in cổng · quầy suất · đối soát vé giấy · export NTT · nhân bản sự kiện** | ✅ Chạy được |
 | **Excel export (`packages/xlsx-lite`)** | ✅ Xong, 8 test |
 | **Survey NTT (`0010` + /khao-sat + tab builder)** | ✅ Chạy được end-to-end |
+| **Cổng đăng ký + tab Vận hành (`0011`: PG/máy quét, zone, bậc quà, suất, Early Bird)** | ✅ Chạy được |
+| **Brand kit tập trung (`packages/brand` + khối BRAND KIT trong CSS)** | ✅ Xong |
 
-**260 test, tất cả xanh.**
+**266 test, tất cả xanh.**
 
 ```bash
 npm install && npm test

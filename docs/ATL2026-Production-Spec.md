@@ -131,7 +131,7 @@ Deadline có **hai nhánh**, không phải một backlog phẳng.
 | **Vận hành ngày sự kiện** | AC10–AC17 | 09/09 | **không có 🔒 nào** |
 | Quà & suất | AC18–AC24 | 09/09 | *(ngưỡng đã chốt ở §1.4 — hết khoá)* |
 | Đối soát & báo cáo | AC25–AC28, AC33–AC36 | 09/09 | 🔒 pháp lý (chỉ AC27) |
-| Cấu hình | AC29–AC31 | 09/09 | 🔒 danh sách booth/zone |
+| Cấu hình | AC29–AC31 | 09/09 | *(UI đã đủ — zone/bậc quà/suất/PG tạo được từ admin; chỉ còn chờ 🔒 nội dung danh sách booth/zone từ AIM để nhập)* |
 
 > **AC10–AC17 (app PG) là module lớn duy nhất không bị khoá bởi bất kỳ 🔒 nào** — trong khi nó cũng là mảnh lớn nhất và rủi ro nhất (offline queue, chặn webview Zalo, decoder WASM, device claim + PIN). Nó không thể bắt đầu muộn mà kịp 09/09. **Đây là chỗ nên code tiếp theo**, không chờ AIM gỡ các khoá còn lại.
 
@@ -217,7 +217,7 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 
 ## 4. Test Plan
 
-### 4.1 Đã có — **260 test**, PGlite, chạy trong CI mọi push
+### 4.1 Đã có — **266 test**, PGlite, chạy trong CI mọi push
 
 | Bộ test | Test | Chứng minh |
 |---|---|---|
@@ -236,7 +236,8 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 | **email** | **13** | QR đính kèm qua cid, không hotlink · escape HTML · Resend protocol, lỗi không throw |
 | **clone-event** | **10** | Copy cấu hình đúng · lịch sử không bao giờ theo · clone sinh ra đóng |
 | **surveys** | **10** | Trần 8 câu là constraint · badge cùng transaction, đủ 4 mode · sửa 11:00 không hỏng response 10:59 |
-| **Tổng** | **260** | |
+| **ops-admin** | **6** | Cổng đăng ký chỉ chặn online (walk-in xuyên qua) · thu hồi máy chết ngay · capacity = số slot |
+| **Tổng** | **266** | |
 
 **Giới hạn đã biết:** PGlite chạy 1 kết nối → chứng minh *logic*, chưa chứng minh *đồng thời*.
 

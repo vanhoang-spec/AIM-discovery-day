@@ -79,3 +79,11 @@ Mọi ràng buộc về tính đúng đắn đều có test đi kèm, và test �
 - `packages/qr-token/test/token.test.js` — thử **mọi** đột biến một ký tự của token
 
 Bộ test hiện có **185 bài**, tất cả xanh. Xin giữ nguyên con số đó khi gửi PR.
+
+## Versioning engine & fork
+
+Monorepo là đơn vị phát hành: mốc ổn định = git tag `engine-vX.Y.Z`. Sửa
+package nào thì thêm một dòng vào `CHANGELOG.md` của package đó **trong cùng
+commit**. Chiến lược tái sử dụng cho khách hàng mới là **fork theo client**,
+không phải multi-tenant — bản đồ config-vs-luật và quy trình dựng fork nằm ở
+`docs/FORK-PLAYBOOK.md`.

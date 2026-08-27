@@ -1,11 +1,11 @@
 {
   "name": "@atl/scan-queue",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "main": "./src/index.js",
   "exports": {
-    "." : "./src/index.js",
+    ".": "./src/index.js",
     "./idb-store": "./src/idb-store.js",
     "./environment": "./src/environment.js"
   },
