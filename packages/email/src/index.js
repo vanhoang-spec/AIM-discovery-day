@@ -86,12 +86,12 @@ export function renderConfirmEmail({ student, ev, qrPngBase64, agendaUrl }) {
 
   const html = `<!doctype html>
 <html lang="vi"><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f6f4ef;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f4ef;padding:24px 12px;">
+<body style="margin:0;padding:0;background:#f5f1ee;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f1ee;padding:24px 12px;">
 <tr><td align="center">
-<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e2dccf;">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e3d8d1;">
   <tr><td style="padding:28px 28px 8px;font-family:Arial,Helvetica,sans-serif;">
-    <div style="font-size:11px;letter-spacing:2px;color:#9a5a12;text-transform:uppercase;font-weight:bold;">Awaken The Lions 2026</div>
+    <div style="font-size:11px;letter-spacing:2px;color:#864c3c;text-transform:uppercase;font-weight:bold;">Awaken The Lions 2026</div>
     <div style="font-size:24px;font-weight:bold;color:#171a1f;padding-top:8px;">Bạn đã đăng ký thành công</div>
   </td></tr>
   <tr><td style="padding:8px 28px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333;">
@@ -102,22 +102,22 @@ export function renderConfirmEmail({ student, ev, qrPngBase64, agendaUrl }) {
   </td></tr>
   <tr><td align="center" style="padding:20px 28px;">
     <img src="cid:qr-code" width="220" height="220" alt="Mã QR tham dự của bạn (trong file đính kèm)"
-         style="display:block;border:1px solid #e2dccf;padding:12px;background:#ffffff;">
+         style="display:block;border:1px solid #e3d8d1;padding:12px;background:#ffffff;">
     <div style="font-family:Courier,monospace;font-size:26px;font-weight:bold;letter-spacing:4px;color:#171a1f;padding-top:12px;">${esc(code)}</div>
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#7b8089;padding-top:4px;">Mã dự phòng — đọc cho nhân viên khi không quét được</div>
   </td></tr>
   <tr><td style="padding:0 28px 20px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7e7cf;border-left:4px solid #9a5a12;">
-      <tr><td style="padding:12px 16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#5c3a0e;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f0e2da;border-left:4px solid #864c3c;">
+      <tr><td style="padding:12px 16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#5b3428;">
         <b>Hãy lưu ảnh mã QR về máy ngay bây giờ.</b><br>
         Ngày sự kiện sân trường rất đông, mạng có thể yếu. Ảnh QR đính kèm email này — mở ra và bấm lưu về máy, dùng được cả khi không có mạng.
       </td></tr>
     </table>
   </td></tr>
   <tr><td style="padding:0 28px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.7;color:#333;">
-    📅 <a href="${esc(agendaUrl)}" style="color:#9a5a12;">Xem lịch hoạt động theo giờ và khu vực</a>
+    📅 <a href="${esc(agendaUrl)}" style="color:#864c3c;">Xem lịch hoạt động theo giờ và khu vực</a>
   </td></tr>
-  <tr><td style="padding:16px 28px;border-top:1px solid #e2dccf;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#7b8089;line-height:1.6;">
+  <tr><td style="padding:16px 28px;border-top:1px solid #e3d8d1;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#7b8089;line-height:1.6;">
     AIM Academy · Đại diện chính thức Cannes Lions tại Việt Nam<br>
     Email này gửi vì bạn đã đăng ký tham dự sự kiện. Mọi thắc mắc, trả lời trực tiếp email này.
   </td></tr>
@@ -169,12 +169,12 @@ export function renderReminderEmail({ template, student, ev, agendaUrl, myUrl })
 
   const html = `<!doctype html>
 <html lang="vi"><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f6f4ef;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f4ef;padding:24px 12px;">
+<body style="margin:0;padding:0;background:#f5f1ee;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f1ee;padding:24px 12px;">
 <tr><td align="center">
-<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e2dccf;">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e3d8d1;">
   <tr><td style="padding:28px 28px 8px;font-family:Arial,Helvetica,sans-serif;">
-    <div style="font-size:11px;letter-spacing:2px;color:#9a5a12;text-transform:uppercase;font-weight:bold;">Awaken The Lions 2026</div>
+    <div style="font-size:11px;letter-spacing:2px;color:#864c3c;text-transform:uppercase;font-weight:bold;">Awaken The Lions 2026</div>
     <div style="font-size:22px;font-weight:bold;color:#171a1f;padding-top:8px;">${lead}</div>
   </td></tr>
   <tr><td style="padding:8px 28px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333;">
@@ -183,14 +183,14 @@ export function renderReminderEmail({ template, student, ev, agendaUrl, myUrl })
   </td></tr>
   <tr><td style="padding:12px 28px 4px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.9;color:#333;">
     3 việc nên làm trước khi đến:<br>
-    1. <a href="${esc(myUrl)}" style="color:#9a5a12;"><b>Lưu ảnh mã QR về máy</b></a> — dùng được cả khi mất mạng<br>
-    2. <a href="${esc(agendaUrl)}" style="color:#9a5a12;">Xem lịch hoạt động theo giờ</a><br>
+    1. <a href="${esc(myUrl)}" style="color:#864c3c;"><b>Lưu ảnh mã QR về máy</b></a> — dùng được cả khi mất mạng<br>
+    2. <a href="${esc(agendaUrl)}" style="color:#864c3c;">Xem lịch hoạt động theo giờ</a><br>
     3. Sạc đầy pin điện thoại
   </td></tr>
   <tr><td style="padding:12px 28px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#245c44;">
     ⭐ Đến trước 8h45 được thêm 1 badge Early Bird.
   </td></tr>
-  <tr><td style="padding:16px 28px;border-top:1px solid #e2dccf;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#7b8089;">
+  <tr><td style="padding:16px 28px;border-top:1px solid #e3d8d1;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#7b8089;">
     AIM Academy · Awaken The Lions 2026
   </td></tr>
 </table>

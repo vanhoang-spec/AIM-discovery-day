@@ -1,19 +1,25 @@
-/* ATL2026 student app — design tokens shared with the document family.
-   Mobile-first; the audience is 18–21 on phones, on congested 4G. System-adjacent
-   font stack with IBM Plex loaded by next/font in the layout. */
+/* ===================== BRAND KIT — Awaken The Lions 2026 =====================
+   Đổi client = sửa KHỐI NÀY + packages/brand/src/index.js. Không còn chỗ nào
+   khác trong codebase mang màu hay tên thương hiệu.
+
+   Nguồn: Elementor global kit của awakenthelions.net — nền đen, chữ trắng,
+   nhấn vàng hồng #CAA79D, Roboto Slab / Roboto. Quy tắc bất di bất dịch:
+   #CAA79D nguyên bản CHỈ đứng trên nền tối (đạt ~8.7:1); trên nền sáng phải
+   dùng biến thể đậm cùng tông #864C3C (6.2:1 trên giấy sáng — AA chữ thường).
+   Thẻ QR giữ nền trắng ở mọi theme — tương phản cho camera hơn thua brand. */
 
 :root {
-  --paper: #f7f5f0;
+  --paper: #f8f5f2;
   --surface: #ffffff;
-  --surface-2: #efebe3;
-  --line: #d9d2c6;
-  --line-soft: #e8e2d7;
-  --ink: #1a1d23;
-  --ink-2: #4a4e57;
-  --ink-3: #7a7d85;
-  --accent: #b26a17;
+  --surface-2: #f0eae5;
+  --line: #dcd0c8;
+  --line-soft: #eae1da;
+  --ink: #1b1613;
+  --ink-2: #4e4540;
+  --ink-3: #7d736d;
+  --accent: #864c3c;
   --accent-ink: #ffffff;
-  --accent-soft: #f3e4cf;
+  --accent-soft: #f0e2da;
   --ok: #2c6e52;
   --ok-soft: #dcebe2;
   --bad: #a33526;
@@ -21,23 +27,24 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --paper: #14171c;
-    --surface: #1b1f26;
-    --surface-2: #232830;
-    --line: #333944;
-    --line-soft: #272c34;
-    --ink: #ece9e3;
-    --ink-2: #b0b4bc;
-    --ink-3: #7e838c;
-    --accent: #e0a04a;
-    --accent-ink: #14171c;
-    --accent-soft: #33281a;
+    --paper: #0f0d0c;
+    --surface: #1a1614;
+    --surface-2: #241f1c;
+    --line: #3b332e;
+    --line-soft: #2a2420;
+    --ink: #f2ede9;
+    --ink-2: #b5aca5;
+    --ink-3: #837a74;
+    --accent: #caa79d;
+    --accent-ink: #1b1613;
+    --accent-soft: #33261f;
     --ok: #64bc93;
     --ok-soft: #1b2e25;
     --bad: #e2705c;
     --bad-soft: #35211d;
   }
 }
+/* =================== HẾT BRAND KIT — dưới đây không có màu thô =============== */
 :root[data-theme='dark'] {
   --paper: #14171c;
   --surface: #1b1f26;
@@ -74,6 +81,9 @@ html, body {
   padding: 20px 16px 56px;
 }
 
+h1, h2 {
+  font-family: var(--font-display, inherit);
+}
 h1 {
   font-weight: 700;
   font-size: 1.5rem;

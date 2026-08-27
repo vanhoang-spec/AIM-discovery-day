@@ -1,7 +1,8 @@
 import './globals.css';
+import { BRAND } from '@atl/brand';
 
 export const metadata = {
-  title: 'ATL2026 — Máy quét PG',
+  title: BRAND.scannerTitle,
   description: 'Ứng dụng quét badge cho PG. Hoạt động cả khi không có mạng.',
 };
 

@@ -23,7 +23,7 @@
   --bad-ink: #ffffff;
   --info: #3d7ab8;
   --info-ink: #ffffff;
-  --accent: #e0a04a;
+  --accent: #caa79d; /* BRAND — rose-gold trên nền tối, xem packages/brand */
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
