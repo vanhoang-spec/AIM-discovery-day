@@ -23,6 +23,7 @@ async function freshDb() {
             '2026-09-12 08:00+07', '2026-09-12 17:00+07', 'k1'),
            (2, 1, 'discovery_day', 'hcm', 'DD HCM', 'FTU HCM', 'HCM',
             '2026-09-12 08:00+07', '2026-09-12 17:00+07', 'k2');
+    update events set is_registration_open = true where id in (1, 2);
     insert into ref_schools (id, name, search_key) values
       (1, 'Đại học Ngoại thương', 'dai hoc ngoai thuong');
   `);

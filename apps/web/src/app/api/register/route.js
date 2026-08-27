@@ -92,6 +92,15 @@ export async function POST(request) {
     );
   }
 
+  // The registration gate (0011): closed stops the ONLINE form only. Say so
+  // in the student's language — what to do, not what went wrong.
+  if (row.status === 'closed') {
+    return Response.json(
+      { error: 'Đăng ký online đã tạm đóng. Bạn vẫn có thể đăng ký nhanh tại cổng vào ngày sự kiện.' },
+      { status: 409 },
+    );
+  }
+
   const { token, svg } = await issueQr({
     eventInstance: eventId,
     studentSeq: row.seq,

@@ -419,6 +419,29 @@ function Config({ api, actor }) {
           ))}
         </tbody>
       </table>
+      <div className="admin-form-row" style={{ maxWidth: 620 }}>
+        <input className="admin-input" id="gt-tier" type="number" placeholder="Bậc" style={{ maxWidth: 70 }} />
+        <input className="admin-input" id="gt-name" placeholder="Tên quà mới" />
+        <input className="admin-input" id="gt-req" type="number" placeholder="Ngưỡng" style={{ maxWidth: 90 }} />
+        <input className="admin-input" id="gt-stock" type="number" placeholder="Kho" style={{ maxWidth: 80 }} />
+        <button type="button" className="admin-btn" onClick={async () => {
+          setMsg(null);
+          try {
+            await api('/api/admin/config', {
+              method: 'POST',
+              body: JSON.stringify({
+                event: EVENT_ID, actor,
+                tier: Number(document.getElementById('gt-tier').value),
+                gift_name: document.getElementById('gt-name').value.trim(),
+                required_badges: Number(document.getElementById('gt-req').value),
+                stock_total: Number(document.getElementById('gt-stock').value),
+              }),
+            });
+            setMsg({ bad: false, text: 'Đã tạo bậc quà.' });
+            load();
+          } catch (e) { setMsg({ bad: true, text: e.message }); }
+        }}>+ Tạo bậc</button>
+      </div>
       <p className="muted">
         Tăng ngưỡng sẽ hiện trước số SV bị ảnh hưởng để xác nhận. Quyền lợi đã cấp không bao giờ bị thu hồi.
       </p>
@@ -565,9 +588,21 @@ function Checkpoints({ api, actor }) {
       </table>
 
       {!draft && (
-        <button type="button" className="admin-btn" onClick={() =>
-          setDraft({ new: true, kind: 'sponsor_booth', name: '' })
-        }>+ Thêm hoạt động</button>
+        <div className="admin-form-row">
+          <button type="button" className="admin-btn" onClick={() =>
+            setDraft({ new: true, kind: 'sponsor_booth', name: '' })
+          }>+ Thêm hoạt động</button>
+          <input className="admin-input" id="zn-name" placeholder="Tên zone mới" style={{ maxWidth: 180 }} />
+          <button type="button" className="admin-btn" onClick={() => {
+            const nm = document.getElementById('zn-name').value.trim();
+            if (!nm) return;
+            api('/api/admin/zones', {
+              method: 'POST',
+              body: JSON.stringify({ event: EVENT_ID, actor, name: nm }),
+            }).then(() => { setMsg({ bad: false, text: 'Đã tạo zone.' }); load(); })
+              .catch((e) => setMsg({ bad: true, text: e.message }));
+          }}>+ Tạo zone</button>
+        </div>
       )}
 
       {draft && (
@@ -770,6 +805,214 @@ function Surveys({ api, actor }) {
   );
 }
 
+/* ---------------- Vận hành (Layer B) ---------------- */
+
+function Ops({ api, actor }) {
+  const [cfg, setCfg] = useState(null);      // từ /api/admin/config (event + checkpoints)
+  const [dev, setDev] = useState(null);      // từ /api/admin/pg-devices
+  const [specials, setSpecials] = useState(null);
+  const [msg, setMsg] = useState(null);
+
+  const load = useCallback(async () => {
+    const [c, d, sp] = await Promise.all([
+      api(`/api/admin/config?event=${EVENT_ID}`),
+      api(`/api/admin/pg-devices?event=${EVENT_ID}`),
+      api(`/api/admin/specials?event=${EVENT_ID}`),
+    ]);
+    setCfg(c); setDev(d); setSpecials(sp.activities);
+  }, [api]);
+  useEffect(() => { load().catch((e) => setMsg({ bad: true, text: e.message })); }, [load]);
+
+  const call = async (path, method, body, okText = 'Đã lưu.') => {
+    setMsg(null);
+    try {
+      const r = await api(path, { method, body: JSON.stringify({ event: EVENT_ID, actor, ...body }) });
+      setMsg({ bad: false, text: r.claim_code ? `Đã tạo — mã nhận máy: ${r.claim_code}` : okText });
+      load();
+      return r;
+    } catch (e) { setMsg({ bad: true, text: e.message }); return null; }
+  };
+
+  if (!cfg || !dev || !specials) return <p className="muted">Đang tải…</p>;
+  const ev = cfg.event;
+  const entrances = cfg.checkpoints.filter((c) => c.kind === 'entrance');
+  const bonuses = cfg.checkpoints.filter((c) => c.kind === 'bonus');
+
+  return (
+    <div>
+      {msg && <p className={msg.bad ? 'admin-err' : 'admin-ok'}>{msg.text}</p>}
+
+      <h3>Đăng ký online</h3>
+      <div className={`gold-banner`} style={ev.is_registration_open
+        ? { background: 'var(--ok-soft)', color: 'var(--ink)' }
+        : { background: 'var(--bad-soft)', color: 'var(--ink)' }}>
+        <span>
+          Form đăng ký online đang <b>{ev.is_registration_open ? 'MỞ' : 'ĐÓNG'}</b>.
+          {' '}Đóng chỉ chặn form online — walk-in tại cổng, admin và import vẫn chạy.
+        </span>
+        <button type="button" className="admin-btn" onClick={() => {
+          const next = !ev.is_registration_open;
+          if (window.confirm(next ? 'Mở đăng ký online?' : 'ĐÓNG form đăng ký online?')) {
+            call('/api/admin/event', 'PATCH', { is_registration_open: next });
+          }
+        }}>{ev.is_registration_open ? 'Đóng đăng ký' : 'Mở đăng ký'}</button>
+      </div>
+
+      <h3>Early Bird</h3>
+      <table className="admin-table admin-config">
+        <tbody>
+          <tr>
+            <td>Hạn chót check-in được thưởng (giờ VN)</td>
+            <td>{ev.early_bird_until ? t(ev.early_bird_until) : 'chưa đặt'}</td>
+            <td><button type="button" className="admin-btn" onClick={() => {
+              const v = prompt('Nhập hạn (VD 2026-09-12T08:45), bỏ trống để tắt:',
+                ev.early_bird_until ? String(ev.early_bird_until).slice(0, 16) : '2026-09-12T08:45');
+              if (v === null) return;
+              call('/api/admin/event', 'PATCH',
+                { early_bird_until: v ? v + ':00+07:00' : null });
+            }}>Sửa</button></td>
+          </tr>
+          <tr>
+            <td>Checkpoint cổng check-in</td>
+            <td>{cfg.checkpoints.find((c) => c.id === ev.checkin_checkpoint_id)?.name ?? '—'}</td>
+            <td>
+              <select className="admin-input" style={{ maxWidth: 220 }}
+                value={ev.checkin_checkpoint_id ?? ''}
+                onChange={(e) => call('/api/admin/event', 'PATCH',
+                  { checkin_checkpoint_id: e.target.value || null })}>
+                <option value="">—</option>
+                {entrances.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td>Checkpoint badge Early Bird (loại bonus)</td>
+            <td>{cfg.checkpoints.find((c) => c.id === ev.early_bird_checkpoint_id)?.name ?? '—'}</td>
+            <td>
+              <select className="admin-input" style={{ maxWidth: 220 }}
+                value={ev.early_bird_checkpoint_id ?? ''}
+                onChange={(e) => call('/api/admin/event', 'PATCH',
+                  { early_bird_checkpoint_id: e.target.value || null })}>
+                <option value="">—</option>
+                {bonuses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Hoạt động đặc biệt</h3>
+      <table className="admin-table">
+        <thead><tr><th>Tên</th><th>Suất</th><th>Đã cấp</th><th>Nhận đăng ký</th><th></th></tr></thead>
+        <tbody>
+          {specials.map((a) => (
+            <tr key={a.id}>
+              <td>{a.name}</td>
+              <td className="num">{a.capacity}</td>
+              <td className="num">{a.claimed}</td>
+              <td>{a.is_open ? '✓ đang mở' : 'đóng'}</td>
+              <td className="admin-row-actions">
+                <button type="button" className="admin-btn" onClick={() => {
+                  const v = prompt(`Số suất mới cho "${a.name}"? (đã cấp ${a.claimed})`, a.capacity);
+                  if (v != null) call('/api/admin/specials', 'PATCH', { id: a.id, capacity: Number(v) });
+                }}>Sửa suất</button>
+                <button type="button" className="admin-btn" onClick={() =>
+                  call('/api/admin/specials', 'PATCH', { id: a.id, is_open: !a.is_open })
+                }>{a.is_open ? 'Đóng' : 'Mở'}</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="admin-form-row" style={{ maxWidth: 560 }}>
+        <input className="admin-input" id="sp-name" placeholder="Tên hoạt động mới (vd: Meet & Greet)" />
+        <input className="admin-input" id="sp-cap" type="number" placeholder="Số suất" style={{ maxWidth: 110 }} />
+        <button type="button" className="admin-btn" onClick={() => {
+          const name = document.getElementById('sp-name').value.trim();
+          const cap = Number(document.getElementById('sp-cap').value);
+          if (name && cap) call('/api/admin/specials', 'POST', { name, capacity: cap },
+            'Đã tạo — sinh đủ slot, đang ĐÓNG; mở khi sẵn sàng.');
+        }}>+ Tạo</button>
+      </div>
+
+      <h3>Đội PG & máy quét ({dev.devices.filter((d) => !d.revoked_at).length} máy hoạt động)</h3>
+      <table className="admin-table">
+        <thead><tr>
+          <th>Máy</th><th>Mã nhận máy</th><th>PG</th><th>Zone</th><th>Trạng thái</th><th></th>
+        </tr></thead>
+        <tbody>
+          {dev.devices.map((d) => (
+            <tr key={d.id} className={d.revoked_at ? 'row-void' : ''}>
+              <td>{d.label}</td>
+              <td className="num">
+                <code style={{ fontSize: 13 }}>{d.claim_code}</code>{' '}
+                {!d.revoked_at && (
+                  <button type="button" className="admin-btn" style={{ padding: '2px 8px' }}
+                    onClick={() => navigator.clipboard?.writeText(d.claim_code)}>copy</button>
+                )}
+              </td>
+              <td>
+                <select className="admin-input" style={{ minWidth: 120 }} disabled={!!d.revoked_at}
+                  value={d.pg_staff_id ?? ''}
+                  onChange={(e) => call('/api/admin/pg-devices', 'PATCH',
+                    { id: d.id, pg_staff_id: e.target.value || null })}>
+                  <option value="">—</option>
+                  {dev.staff.map((st) => <option key={st.id} value={st.id}>{st.full_name}</option>)}
+                </select>
+              </td>
+              <td>
+                <select className="admin-input" style={{ minWidth: 110 }} disabled={!!d.revoked_at}
+                  value={d.zone_id ?? ''}
+                  onChange={(e) => call('/api/admin/pg-devices', 'PATCH',
+                    { id: d.id, zone_id: e.target.value || null })}>
+                  <option value="">—</option>
+                  {dev.zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+                </select>
+              </td>
+              <td>
+                {d.revoked_at ? 'đã thu hồi'
+                  : d.claimed_at ? `đã nhận · sync ${d.last_sync_at ? t(d.last_sync_at) : '—'}`
+                  : 'chưa nhận'}
+              </td>
+              <td>
+                {!d.revoked_at && (
+                  <button type="button" className="link-danger" onClick={() => {
+                    const reason = prompt(`THU HỒI máy ${d.label}? Token trên máy chết ngay lập tức. Lý do:`);
+                    if (reason) call('/api/admin/pg-devices', 'PATCH',
+                      { id: d.id, action: 'revoke', reason });
+                  }}>thu hồi</button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="admin-form-row" style={{ maxWidth: 640 }}>
+        <input className="admin-input" id="dv-label" placeholder="Nhãn máy mới (vd: PG-08)" style={{ maxWidth: 150 }} />
+        <button type="button" className="admin-btn" onClick={() => {
+          const label = document.getElementById('dv-label').value.trim();
+          if (label) call('/api/admin/pg-devices', 'POST', { type: 'device', label });
+        }}>+ Tạo máy</button>
+        <input className="admin-input" id="st-name" placeholder="Tên PG mới" style={{ maxWidth: 170 }} />
+        <select className="admin-input" id="st-role" style={{ maxWidth: 130 }}>
+          <option value="pg">PG</option>
+          <option value="supervisor">Giám sát</option>
+        </select>
+        <button type="button" className="admin-btn" onClick={() => {
+          const nm = document.getElementById('st-name').value.trim();
+          if (nm) call('/api/admin/pg-devices', 'POST',
+            { type: 'staff', full_name: nm, role: document.getElementById('st-role').value });
+        }}>+ Thêm PG</button>
+      </div>
+      <p className="muted">
+        In thẻ nhận máy: mỗi PG một thẻ ghi <b>mã nhận máy</b> + hướng dẫn 3 bước
+        (cài màn hình chính TRƯỚC → mở app → nhập mã + PIN tự chọn). Thu hồi dùng khi
+        mất máy — token chết ngay ở request kế tiếp.
+      </p>
+    </div>
+  );
+}
+
 /* ---------------- Đối soát (AC26) ---------------- */
 
 function Reconcile({ api, actor }) {
@@ -960,7 +1203,8 @@ export default function AdminPage() {
       <nav className="admin-tabs">
         {[['overview', 'Tổng quan'], ['students', 'Sinh viên'],
           ['config', 'Cấu hình'], ['checkpoints', 'Hoạt động'],
-          ['surveys', 'Khảo sát'], ['reconcile', 'Đối soát']].map(([id, label]) => (
+          ['surveys', 'Khảo sát'], ['ops', 'Vận hành'],
+          ['reconcile', 'Đối soát']].map(([id, label]) => (
           <button
             key={id} type="button"
             className={tab === id ? 'tab on' : 'tab'}
@@ -973,6 +1217,7 @@ export default function AdminPage() {
       {tab === 'config' && <Config api={api} actor={actor} />}
       {tab === 'checkpoints' && <Checkpoints api={api} actor={actor} />}
       {tab === 'surveys' && <Surveys api={api} actor={actor} />}
+      {tab === 'ops' && <Ops api={api} actor={actor} />}
       {tab === 'reconcile' && <Reconcile api={api} actor={actor} />}
     </main>
   );

@@ -25,7 +25,8 @@ export async function GET(request) {
   const [event, tiers, checkpoints, zones] = await Promise.all([
     db.query(
       `select id, name, special_threshold_y, special_claim_limit, gift_ladder_mode,
-              early_bird_until, sms_enabled
+              early_bird_until, sms_enabled, is_registration_open,
+              checkin_checkpoint_id, early_bird_checkpoint_id
          from events where id = $1`, [eventId]),
     db.query(
       `select id, tier, gift_name, required_badges, stock_total, stock_issued, is_active
@@ -45,6 +46,44 @@ export async function GET(request) {
       checkpoints: checkpoints.rows, zones: zones.rows },
     { headers: { 'Cache-Control': 'private, no-store' } },
   );
+}
+
+export async function POST(request) {
+  const auth = checkAdmin(request);
+  if (!auth.ok) return adminError(auth);
+  const body = await request.json().catch(() => ({}));
+  const eventId = Number(body.event ?? 1);
+  const actor = String(body.actor ?? '').trim();
+  if (!actor) return Response.json({ error: 'Thiếu tên người thao tác' }, { status: 400 });
+
+  // Create a NEW gift tier (Layer B — the edit UI existed, creation did not).
+  const tier = Number(body.tier);
+  const name = String(body.gift_name ?? '').trim();
+  const req = Number(body.required_badges);
+  const stock = Number(body.stock_total);
+  if (!Number.isInteger(tier) || tier < 1 || !name
+      || !Number.isInteger(req) || req < 0
+      || !Number.isInteger(stock) || stock < 0) {
+    return Response.json({ error: 'Thiếu hoặc sai dữ liệu bậc quà' }, { status: 400 });
+  }
+  const db = await getDb();
+  try {
+    const r = await db.query(
+      `insert into gift_tiers (event_id, tier, required_badges, gift_name, stock_total)
+       values ($1, $2, $3, $4, $5) returning id`,
+      [eventId, tier, req, name, stock]);
+    await db.query(
+      `insert into audit_log (event_id, actor_type, actor_id, action, target_type, target_id,
+                              after_state)
+       values ($1, 'super_admin', $2, 'create_gift_tier', 'gift_tier', $3::text, $4::jsonb)`,
+      [eventId, actor, String(r.rows[0].id),
+       JSON.stringify({ tier, required_badges: req, stock_total: stock })]);
+    return Response.json({ ok: true, id: r.rows[0].id });
+  } catch (err) {
+    return Response.json(
+      { error: /unique/i.test(err.message) ? `Bậc ${tier} đã tồn tại` : err.message },
+      { status: 409 });
+  }
 }
 
 export async function PATCH(request) {
