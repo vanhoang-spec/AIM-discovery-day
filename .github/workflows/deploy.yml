@@ -144,7 +144,10 @@ jobs:
           # in the list, the token is scoped to the wrong account — the one
           # failure mode the id checks above cannot detect.
           echo "CHANDOAN --- token nhìn thấy gì ---"
-          curl -s -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}"             "https://api.vercel.com/v9/projects?teamId=$clean_org&limit=20"             | grep -oE '"name":"[^"]*"|"error"|"code":"[^"]*"' | head -20 | sed 's/^/CHANDOAN /' || true
+          curl -s -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}"             "https://api.vercel.com/v9/projects?teamId=$clean_org&limit=20"             | tr ',' '
+' | grep -oE '"(id|name)":"(prj_)?[^"]*"' | head -30 | sed 's/^/CHANDOAN /' || true
+          echo "CHANDOAN --- id trong secret (8 ký tự đầu) ---"
+          echo "CHANDOAN secret_prj=${clean_prj:0:8}… len=${#clean_prj}"
           echo "CHANDOAN --- token thuộc về ai ---"
           curl -s -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}"             "https://api.vercel.com/v2/user"             | grep -oE '"username":"[^"]*"|"error"' | sed 's/^/CHANDOAN /' || true
 
