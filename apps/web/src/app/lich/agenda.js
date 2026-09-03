@@ -25,7 +25,25 @@ const KIND_LABEL = {
   learning_class: 'Lớp học',
 };
 
+/** Empty agenda — what the page renders when the database cannot be read. */
+const EMPTY = { events: [], rows: [], busyBy: new Map(), anyScans: false, degraded: true };
+
 export async function loadAgenda() {
+  try {
+    return await readAgenda();
+  } catch (err) {
+    // These two pages are ISR: Next prerenders them AT BUILD TIME. Letting a
+    // database hiccup throw here means a bad connection string — or a
+    // thirty-second Supabase blip — fails the entire deployment, including
+    // the registration form that has nothing to do with the agenda.
+    // Degrade instead: ship the shell, let the next revalidation fill it in.
+    // The deploy's real database gate is the /api/refdata smoke check.
+    console.error('loadAgenda failed, rendering empty agenda:', err.message);
+    return EMPTY;
+  }
+}
+
+async function readAgenda() {
   const db = await getDb();
   const events = (await db.query(
     `select id, slug, name, venue_name, city, starts_at

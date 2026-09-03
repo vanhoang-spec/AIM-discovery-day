@@ -51,7 +51,41 @@ async function createPglite() {
   };
 }
 
+/**
+ * A malformed DATABASE_URL surfaces deep inside the driver as a bare
+ * "TypeError: Invalid URL" with the value redacted — from a build log that
+ * tells you nothing. Check the shape here and name the two mistakes that
+ * actually happen: the [YOUR-PASSWORD] placeholder left in place, and a
+ * password containing characters that are illegal unencoded in a URL.
+ */
+function assertConnectionString(url) {
+  if (url.includes('[') || url.includes(']')) {
+    throw new Error(
+      'DATABASE_URL còn dấu ngoặc vuông — bạn chưa thay [YOUR-PASSWORD] bằng mật khẩu thật.',
+    );
+  }
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(
+      'DATABASE_URL không phải URL hợp lệ. Thường do mật khẩu chứa ký tự đặc biệt '
+      + '(@ # / ? : &) — đặt lại mật khẩu database chỉ gồm chữ và số, rồi ghép lại chuỗi.',
+    );
+  }
+  if (!/^postgres(ql)?:$/.test(parsed.protocol)) {
+    throw new Error(`DATABASE_URL phải bắt đầu bằng postgresql:// — đang là "${parsed.protocol}"`);
+  }
+  if (parsed.port !== '6543') {
+    console.warn(
+      `[@atl/db] Cổng ${parsed.port || '(mặc định 5432)'} — production phải dùng `
+      + 'Transaction pooler cổng 6543, nếu không sẽ cạn connection lúc cao điểm.',
+    );
+  }
+}
+
 function createPostgres(url) {
+  assertConnectionString(url);
   // Lazy import so the dev path never pays for it.
   return import('postgres').then(({ default: postgres }) => {
     const sql = postgres(url, { max: 1, prepare: false });
