@@ -128,6 +128,25 @@ jobs:
           esac
           [ "$bad" = "1" ] && exit 1 || true
 
+          # Trim invisible characters. A secret pasted with a trailing newline
+          # still passes every shape check above, then fails deep inside Vercel
+          # as an opaque "Project not found" — the value looks right in every
+          # log because the newline is invisible. Re-export the cleaned values
+          # so every later step uses them.
+          clean_org=$(printf '%s' "$VERCEL_ORG_ID" | tr -d '[:space:]')
+          clean_prj=$(printf '%s' "$VERCEL_PROJECT_ID" | tr -d '[:space:]')
+          if [ "${#clean_org}" != "${#VERCEL_ORG_ID}" ] || [ "${#clean_prj}" != "${#VERCEL_PROJECT_ID}" ]; then
+            echo "⚠️ Đã cắt ký tự thừa: ORG ${#VERCEL_ORG_ID}→${#clean_org}, PRJ ${#VERCEL_PROJECT_ID}→${#clean_prj}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "VERCEL_ORG_ID=$clean_org" >> "$GITHUB_ENV"
+          echo "VERCEL_PROJECT_ID=$clean_prj" >> "$GITHUB_ENV"
+
+          # Ask Vercel directly what this token can see. If the project is not
+          # in the list, the token is scoped to the wrong account — the one
+          # failure mode the id checks above cannot detect.
+          echo "### Project mà token nhìn thấy" >> "$GITHUB_STEP_SUMMARY"
+          curl -s -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}"             "https://api.vercel.com/v9/projects?teamId=$clean_org&limit=20"             | grep -oE '"name":"[^"]*"|"id":"prj_[^"]*"' | head -20 >> "$GITHUB_STEP_SUMMARY" || true
+
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
