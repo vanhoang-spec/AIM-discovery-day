@@ -56,6 +56,8 @@ const PROVINCES = [
   ['ca-mau', 'Cà Mau'],
 ];
 
+export { SCHOOLS, PROVINCES };
+
 export async function seedDev(pg) {
   await pg.exec(`
     insert into editions (id, year, name) values (1, 2026, 'Awaken The Lions 2026')

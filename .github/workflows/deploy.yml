@@ -18,6 +18,12 @@ name: Deploy (manual only)
 on:
   workflow_dispatch:
     inputs:
+      app:
+        description: 'App to deploy'
+        required: true
+        default: web
+        type: choice
+        options: [web, pg]
       target:
         description: 'Deploy target'
         required: true
@@ -34,7 +40,7 @@ on:
         default: ''
 
 concurrency:
-  group: deploy-${{ inputs.target }}
+  group: deploy-${{ inputs.app }}-${{ inputs.target }}
   cancel-in-progress: false
 
 jobs:
@@ -51,6 +57,7 @@ jobs:
           fi
       - name: Record intent
         run: |
+          echo "App    : ${{ inputs.app }}"           >> "$GITHUB_STEP_SUMMARY"
           echo "Target : ${{ inputs.target }}"        >> "$GITHUB_STEP_SUMMARY"
           echo "By     : ${{ github.actor }}"         >> "$GITHUB_STEP_SUMMARY"
           echo "Commit : ${{ github.sha }}"           >> "$GITHUB_STEP_SUMMARY"
@@ -72,23 +79,29 @@ jobs:
       - run: npm test
 
   deploy:
-    name: Deploy to ${{ inputs.target }}
+    name: Deploy ${{ inputs.app }} to ${{ inputs.target }}
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Two apps, two Vercel projects, ONE workflow. The project id is picked by
+    # the app input; the student app and the scanner deploy independently —
+    # that separation is what lets the PG app freeze at 07:00 on event day
+    # while the student app can still be hotfixed at 10:30.
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ inputs.app == 'web' && secrets.VERCEL_PROJECT_ID_WEB || secrets.VERCEL_PROJECT_ID_PG }}
+      APP_DIR: apps/${{ inputs.app }}
     steps:
       - uses: actions/checkout@v7
 
       - name: Check required secrets exist
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           missing=""
           [ -z "$VERCEL_TOKEN" ]      && missing="$missing VERCEL_TOKEN"
           [ -z "$VERCEL_ORG_ID" ]     && missing="$missing VERCEL_ORG_ID"
-          [ -z "$VERCEL_PROJECT_ID" ] && missing="$missing VERCEL_PROJECT_ID"
+          [ -z "$VERCEL_PROJECT_ID" ] && missing="$missing VERCEL_PROJECT_ID_${{ inputs.app == 'web' && 'WEB' || 'PG' }}"
           if [ -n "$missing" ]; then
             echo "::error::Missing repository secrets:$missing"
             echo "Add them under Settings → Secrets and variables → Actions."
@@ -105,29 +118,21 @@ jobs:
       - run: npm ci
 
       - name: Pull Vercel environment
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          npx vercel pull --yes \
+          npx vercel pull --yes --cwd "$APP_DIR" \
             --environment=${{ inputs.target == 'production' && 'production' || 'preview' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          npx vercel build ${{ inputs.target == 'production' && '--prod' || '' }} \
+          npx vercel build --cwd "$APP_DIR" \
+            ${{ inputs.target == 'production' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy prebuilt output
         id: deploy
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          url=$(npx vercel deploy --prebuilt \
+          url=$(npx vercel deploy --prebuilt --cwd "$APP_DIR" \
             ${{ inputs.target == 'production' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$url" >> "$GITHUB_OUTPUT"
@@ -136,9 +141,12 @@ jobs:
       - name: Smoke check the deployment
         run: |
           url="${{ steps.deploy.outputs.url }}"
-          code=$(curl -s -o /dev/null -w '%{http_code}' "$url/api/refdata")
-          echo "GET /api/refdata -> $code" >> "$GITHUB_STEP_SUMMARY"
+          # web has a public JSON endpoint; the pg app's API routes are
+          # device-authed, so its liveness check is the app shell itself.
+          if [ "${{ inputs.app }}" = "web" ]; then path="/api/refdata"; else path="/"; fi
+          code=$(curl -s -L -o /dev/null -w '%{http_code}' "$url$path")
+          echo "GET $path -> $code" >> "$GITHUB_STEP_SUMMARY"
           if [ "$code" != "200" ]; then
-            echo "::error::Deployment is up but /api/refdata returned $code"
+            echo "::error::Deployment is up but $path returned $code"
             exit 1
           fi
