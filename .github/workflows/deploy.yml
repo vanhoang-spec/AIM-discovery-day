@@ -110,6 +110,24 @@ jobs:
             exit 1
           fi
 
+          # Shape check. ORG_ID and PROJECT_ID are IDENTIFIERS, not credentials
+          # (the token is the credential), so echoing their prefix is safe — and
+          # it turns Vercel's opaque "Project not found" into a named mistake.
+          # Pasting the team slug or the project NAME instead of the id is the
+          # single most common setup error.
+          echo "VERCEL_ORG_ID     : ${VERCEL_ORG_ID:0:5}…  (độ dài ${#VERCEL_ORG_ID}) — mong đợi bắt đầu 'team_'" >> "$GITHUB_STEP_SUMMARY"
+          echo "VERCEL_PROJECT_ID : ${VERCEL_PROJECT_ID:0:5}…  (độ dài ${#VERCEL_PROJECT_ID}) — mong đợi bắt đầu 'prj_'" >> "$GITHUB_STEP_SUMMARY"
+          bad=0
+          case "$VERCEL_ORG_ID" in
+            team_*) ;;
+            *) echo "::error::VERCEL_ORG_ID phải bắt đầu bằng 'team_' — bạn đang dán slug (tcm17) hoặc tên team (TCM)?"; bad=1 ;;
+          esac
+          case "$VERCEL_PROJECT_ID" in
+            prj_*) ;;
+            *) echo "::error::VERCEL_PROJECT_ID phải bắt đầu bằng 'prj_' — bạn đang dán tên project (atl2026-web)?"; bad=1 ;;
+          esac
+          [ "$bad" = "1" ] && exit 1 || true
+
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
