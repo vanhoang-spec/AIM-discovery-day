@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { matchesQuery, scoreMatch } from '@atl/vn-text';
+import { choosableEvents, isOnlineClosed } from '../../lib/event-choices.js';
 
 const DRAFT_KEY = 'atl_reg_draft_v1';
 const PASS_KEY = 'atl_pass_v1';
@@ -177,6 +178,30 @@ export default function RegisterPage() {
 
   if (done) return <Success data={done} />;
 
+  // Per-mode event list. The rule lives in lib/event-choices.js because the
+  // client and the server gate drifted apart here once already — see that
+  // file for what broke and why the walk-in desk must keep working.
+  const eventChoices = choosableEvents(ref?.events, walkin);
+  const onlineClosed = isOnlineClosed(ref?.events, walkin, ref !== null);
+
+  // An empty radio group under a required label is a dead end: the student
+  // fills everything, presses submit and is told to pick an event that is not
+  // on screen. Say what is true instead.
+  if (onlineClosed) {
+    return (
+      <main className="wrap">
+        <h1>Đăng ký Discovery Day</h1>
+        <div className="banner-err" role="status">
+          <strong>Đăng ký online đang tạm đóng.</strong>
+          <p style={{ margin: '8px 0 0' }}>
+            Bạn vẫn tham dự được: đến thẳng cổng sự kiện sáng Thứ Bảy 12/09, quét mã QR
+            trên poster để lấy mã tham dự ngay tại chỗ. Không cần đăng ký trước.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   const years = [];
   for (let y = 2010; y >= 1998; y--) years.push(y);
 
@@ -194,9 +219,7 @@ export default function RegisterPage() {
       <form onSubmit={submit} noValidate>
         <Field label="Bạn tham dự tại" error={errors.event_id} required>
           <div className="radio-row">
-            {(ref?.events ?? [
-              { id: 1, city: 'Hà Nội' }, { id: 2, city: 'TP.HCM' },
-            ]).map((e) => (
+            {eventChoices.map((e) => (
               <label key={e.id}>
                 <input
                   type="radio" name="event" value={e.id}

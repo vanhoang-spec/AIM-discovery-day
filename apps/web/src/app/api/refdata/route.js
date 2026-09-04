@@ -12,9 +12,14 @@ import { getDb } from '@atl/db';
 export async function GET() {
   const db = await getDb();
   const [events, schools, provinces] = await Promise.all([
+    // Every event, WITH the flag — not just the open ones. Filtering here
+    // silently killed the walk-in desk: `0011_registration_gate` closes the
+    // gate for `source = 'online'` ONLY, so the server still accepts walk-ins
+    // after registration closes, but a filtered list left the form with no
+    // event to pick and nothing to submit. The client decides per mode now.
     db.query(
-      `select id, slug, name, venue_name, city
-         from events where is_registration_open order by id`),
+      `select id, slug, name, venue_name, city, is_registration_open
+         from events order by id`),
     db.query(
       `select id, name, search_key from ref_schools where is_active order by name`),
     db.query(
