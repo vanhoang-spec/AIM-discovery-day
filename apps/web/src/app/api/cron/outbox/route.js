@@ -18,7 +18,7 @@
 import { getDb } from '@atl/db';
 import { mintToken, importKey } from '@atl/qr-token';
 import { renderPNGDataURL } from '@atl/qr-render';
-import { renderConfirmEmail, renderReminderEmail, sendViaResend } from '@atl/email';
+import { renderConfirmEmail, renderReminderEmail, sendViaResend, unsubscribeHeaders } from '@atl/email';
 import { BRAND } from '@atl/brand';
 
 export const dynamic = 'force-dynamic';
@@ -96,7 +96,13 @@ export async function GET(request) {
         : renderReminderEmail({ template: row.template, student, ev, ...urls });
 
       const r = await sendViaResend(
-        { from, to: row.recipient, replyTo: BRAND.email.replyTo, ...msg },
+        {
+          from,
+          to: row.recipient,
+          replyTo: BRAND.email.replyTo,
+          headers: unsubscribeHeaders(BRAND.email.replyTo),
+          ...msg,
+        },
         { apiKey },
       );
       await db.query(`select finish_outbox($1, $2, $3)`, [row.id, r.ok, r.error ?? null]);

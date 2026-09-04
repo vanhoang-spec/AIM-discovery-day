@@ -4,6 +4,7 @@ import {
   renderConfirmEmail,
   renderReminderEmail,
   sendViaResend,
+  unsubscribeHeaders,
   subjectFor,
 } from '../src/index.js';
 
@@ -135,6 +136,20 @@ describe('sendViaResend', () => {
     assert.equal('reply_to' in body, false);
   });
 
+  test('custom headers ride along; absent when empty', async () => {
+    let body;
+    const fetchImpl = async (_u, init) => {
+      body = JSON.parse(init.body);
+      return { ok: true, json: async () => ({ id: 're_1' }) };
+    };
+    await sendViaResend({ ...msg, headers: { 'List-Unsubscribe': '<mailto:x@y.vn>' } },
+      { apiKey: 'k', fetchImpl });
+    assert.equal(body.headers['List-Unsubscribe'], '<mailto:x@y.vn>');
+
+    await sendViaResend({ ...msg, headers: {} }, { apiKey: 'k', fetchImpl });
+    assert.equal('headers' in body, false);
+  });
+
   test('HTTP failure returns ok:false with detail — it must NOT throw', async () => {
     const fetchImpl = async () => ({
       ok: false, status: 422, json: async () => ({ message: 'invalid from' }),
@@ -154,5 +169,24 @@ describe('sendViaResend', () => {
 
   test('refuses to run without an API key — a silent no-op would look like spam-folder trouble', async () => {
     await assert.rejects(sendViaResend(msg, { fetchImpl: async () => ({}) }), /apiKey/);
+  });
+});
+
+describe('unsubscribeHeaders', () => {
+  test('builds a mailto List-Unsubscribe', () => {
+    const h = unsubscribeHeaders('competition@aimacademy.vn');
+    assert.match(h['List-Unsubscribe'], /^<mailto:competition@aimacademy\.vn\?subject=/);
+  });
+
+  test('does NOT promise One-Click — we have no endpoint to honour it', () => {
+    // Gmail actually probes the POST endpoint. Declaring the capability
+    // without serving it is worse than leaving the header off entirely.
+    const h = unsubscribeHeaders('competition@aimacademy.vn');
+    assert.equal('List-Unsubscribe-Post' in h, false);
+  });
+
+  test('no mailbox → no header at all, never an empty one', () => {
+    assert.deepEqual(unsubscribeHeaders(undefined), {});
+    assert.deepEqual(unsubscribeHeaders(''), {});
   });
 });

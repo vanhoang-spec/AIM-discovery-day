@@ -208,8 +208,29 @@ export function renderReminderEmail({ template, student, ev, agendaUrl, myUrl })
  * Returns { ok, id?, error? }; never throws on HTTP errors so the worker can
  * feed finish_outbox either way. Throws only on programmer errors.
  */
+/**
+ * List-Unsubscribe, as a `mailto:` only.
+ *
+ * A brand-new sending domain has no reputation, and corporate filters read
+ * the absence of this header as "bulk sender who does not offer an exit".
+ * Adding it is one of the few positive trust signals available on day one —
+ * `mail.awakenthelions.net` published its DNS this morning.
+ *
+ * Deliberately NOT declaring `List-Unsubscribe-Post: One-Click`: that promises
+ * an HTTPS endpoint which honours a POST, and we do not have one. Announcing a
+ * capability we cannot serve is worse than omitting it — Gmail tests it.
+ * One-click only becomes mandatory above 5.000 messages/day; this campaign
+ * sends ~4.000 across a whole week.
+ */
+export function unsubscribeHeaders(mailbox) {
+  if (!mailbox) return {};
+  return {
+    'List-Unsubscribe': `<mailto:${mailbox}?subject=Huy nhan email ATL2026>`,
+  };
+}
+
 export async function sendViaResend(
-  { from, to, subject, html, text, attachments = [], replyTo },
+  { from, to, subject, html, text, attachments = [], replyTo, headers },
   { apiKey, fetchImpl = fetch } = {},
 ) {
   if (!apiKey) throw new Error('sendViaResend: apiKey is required');
@@ -229,6 +250,7 @@ export async function sendViaResend(
         // Resend spells it snake_case. Omitted entirely when absent — sending
         // reply_to: undefined is fine in JS but an explicit null is not.
         ...(replyTo ? { reply_to: [replyTo] } : {}),
+        ...(headers && Object.keys(headers).length ? { headers } : {}),
         subject,
         html,
         text,
