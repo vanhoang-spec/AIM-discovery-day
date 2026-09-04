@@ -90,7 +90,13 @@ jobs:
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ inputs.app == 'web' && secrets.VERCEL_PROJECT_ID_WEB || secrets.VERCEL_PROJECT_ID_PG }}
-      APP_DIR: apps/${{ inputs.app }}
+      # No APP_DIR / --cwd on purpose. In an npm-workspaces monorepo the
+      # dependencies hoist to the repo ROOT, so running the Vercel CLI from
+      # inside apps/<app> makes it look for node_modules one level too deep
+      # and fail with "Please ensure project dependencies have been
+      # installed". Each Vercel project instead carries Root Directory =
+      # apps/<app>; vercel pull downloads that setting and the CLI builds
+      # the right app from the repo root.
     steps:
       - uses: actions/checkout@v7
 
@@ -163,20 +169,20 @@ jobs:
 
       - name: Pull Vercel environment
         run: |
-          npx vercel pull --yes --cwd "$APP_DIR" \
+          npx vercel pull --yes \
             --environment=${{ inputs.target == 'production' && 'production' || 'preview' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build
         run: |
-          npx vercel build --cwd "$APP_DIR" \
+          npx vercel build \
             ${{ inputs.target == 'production' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy prebuilt output
         id: deploy
         run: |
-          url=$(npx vercel deploy --prebuilt --cwd "$APP_DIR" \
+          url=$(npx vercel deploy --prebuilt \
             ${{ inputs.target == 'production' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$url" >> "$GITHUB_OUTPUT"
