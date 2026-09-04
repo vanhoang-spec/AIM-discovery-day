@@ -14,7 +14,8 @@
   "scripts": {
     "test": "node --test packages/*/test/*.test.js apps/*/test/*.test.js supabase/test/*.test.js",
     "test:qr": "node --test packages/qr-token/test/*.test.js",
-    "test:db": "node --test supabase/test/*.test.js"
+    "test:db": "node --test supabase/test/*.test.js",
+    "test:concurrency": "node --env-file=.env.local scripts/concurrency.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.7"

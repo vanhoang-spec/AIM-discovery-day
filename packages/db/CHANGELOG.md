@@ -3,6 +3,14 @@
 Quy ước: sửa package này thì thêm một dòng vào đây trong CÙNG commit.
 Mốc ổn định của cả engine là git tag `engine-vX.Y.Z` — xem docs/FORK-PLAYBOOK.md.
 
+## 1.0.2 — 2026-09-04
+- `idle_timeout: 20` cho kết nối Supabase. Supavisor chặn cứng 200 CLIENT
+  (Micro, dashboard ghi "cannot be changed") và trả EMAXCONN chứ không xếp
+  hàng — T1/T2/T6 đã dính đúng lỗi này khi mở 500 kết nối. Trần đó đếm theo
+  **instance đang ấm**, không phải request đồng thời: instance rảnh vẫn giữ
+  chỗ vì client nằm trong globalThis. Có timeout thì nó trả chỗ về giữa các
+  đợt, trong đợt vẫn giữ nguyên lợi thế không phải bắt tay TLS lại.
+
 ## 1.0.1 — 2026-09-04
 - `assertDatabaseConfigured`: production thiếu `DATABASE_URL` thì **dừng hẳn**,
   không âm thầm rơi về PGlite (database rỗng + mã máy quét demo của seed-dev).

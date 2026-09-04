@@ -241,7 +241,12 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 
 **Giới hạn đã biết:** PGlite chạy 1 kết nối → chứng minh *logic*, chưa chứng minh *đồng thời*.
 
-### 4.2 Bắt buộc trước 05/09 (Supabase thật, đa kết nối)
+### 4.2 Bắt buộc trước 05/09 (Supabase thật, đa kết nối) — `✅` chạy 04/09
+
+Chạy bằng `npm run test:concurrency` (`scripts/concurrency.mjs`), trên một
+**project Supabase nháp dùng-xong-xoá**, KHÔNG phải database sự kiện: bảng
+`ledger_events` là append-only nên mọi lượt quét test sẽ nằm lại vĩnh viễn.
+Bộ test tự từ chối chạy nếu không thấy bảng đánh dấu `concurrency_sandbox`.
 | # | Kịch bản | Tiêu chí đạt |
 |---|---|---|
 | T1 | 500 client tranh 200 suất hoạt động đặc biệt | Đúng 200 thành công, **10/10 lần chạy** |
@@ -251,6 +256,20 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 | T5 | 2 PG quét cùng SV cùng checkpoint trong <100ms | Đúng 1 badge, 1 lượt trả về "đã có" |
 | **T6** | **Giờ Vàng: 200 lượt quét trong đợt có nắp 80** | Đúng 80 badge thưởng, badge gốc đủ 200, đợt tự đóng |
 | **T7** | **Giờ Vàng: vượt ngân sách ngày 300** | Đợt tiếp theo bị từ chối kích hoạt |
+
+**Kết quả 04/09 — 7/7 đạt.** T1 held=200/500 (`sold_out`=300), T2 đúng 1
+thành công trên 200 lượt claim (kho 49/50), T3 60 giây 17.513 thao tác 0 lỗi
+0 dòng lệch, T4 `counted,replay,replay` 1 dòng ledger, T5
+`counted/repeat_not_counted` 1 badge, T6 đúng 80 badge thưởng trên 200 lượt
+quét PG, T7 trả `budget_exhausted`. **Không hàm nghiệp vụ nào phải sửa** —
+mọi lần báo đỏ đều là lỗi trong chính bộ test.
+
+⚠️ **Trần kết nối phát hiện khi chạy.** Supavisor chặn cứng **200 client**
+(compute Micro — dashboard ghi *"cannot be changed"*), trả `EMAXCONN` chứ
+không xếp hàng. Trần này đếm theo **instance Vercel đang ấm**, không phải
+request đồng thời, vì client nằm trong `globalThis`. Đã thêm
+`idle_timeout: 20` vào `@atl/db` để instance rảnh trả chỗ về. **Phải đo số
+client đỉnh trong buổi §4.3** — chạm trần thì nâng compute Micro → Small.
 
 ### 4.3 Mô phỏng ngày sự kiện — 08/09
 - Chạy song song 45 phút, giả lập tải thực (36 req/giây nền + đỉnh cổng 17 người/phút/lane).
@@ -266,7 +285,8 @@ Chính sách đổi ngưỡng giữa sự kiện (đã cài trong /admin): **kh�
 
 ### 4.5 Điều kiện KHÔNG đạt → không go
 Bất kỳ điều nào chưa đạt thì **hoãn tính năng đó, không hoãn cả sự kiện** — chuyển sang quy trình giấy đã thiết kế sẵn:
-- T1–T7 chưa xanh trên Supabase thật.
+- ~~T1–T7 chưa xanh trên Supabase thật.~~ `✅` 7/7 ngày 04/09 — xem §4.2.
+- Số client đỉnh chạm trần 200 của pooler trong buổi mô phỏng §4.3 (chưa đo).
 - **SPF/DKIM/DMARC chưa publish** — email sẽ vào spam hàng loạt. Đây là mục duy nhất **không có đường lui** ngoài dời ngày, vì sau khi bỏ SMS thì email là kênh gửi mã duy nhất.
 
 *(v1.0 liệt "chưa có SMS brandname" vào đây — đã gỡ, xem §1.3.)*

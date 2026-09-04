@@ -88,7 +88,27 @@ function createPostgres(url) {
   assertConnectionString(url);
   // Lazy import so the dev path never pays for it.
   return import('postgres').then(({ default: postgres }) => {
-    const sql = postgres(url, { max: 1, prepare: false });
+    // idle_timeout: hand the connection back when this instance goes quiet.
+    //
+    // Supavisor caps CLIENT connections — 200 on Micro, and the dashboard
+    // says the number "cannot be changed" at that compute size. Past it the
+    // answer is a hard EMAXCONN error, not a queue.
+    //
+    // The trap is that the cap counts WARM INSTANCES, not concurrent
+    // requests. `getDb` stashes this client on globalThis so a warm Vercel
+    // instance reuses it — deliberately, it saves a TLS handshake to
+    // Singapore on every request — but without a timeout that instance also
+    // holds its slot in the 200 while doing nothing at all. At 08:00 on
+    // 12/09, with both venues arriving at once, Vercel fans out to many more
+    // instances than there are simultaneous requests, and they stay warm for
+    // minutes afterwards. Requests would then fail on connect while the
+    // database sits nearly idle.
+    //
+    // 20s is chosen against the traffic shape: inside a burst the connection
+    // never goes idle that long, so the hot path keeps its handshake saving;
+    // between bursts the slot goes back to the pool. Measured for real in
+    // the §4.3 load rehearsal — treat this number as a starting point.
+    const sql = postgres(url, { max: 1, prepare: false, idle_timeout: 20 });
     return {
       query: async (text, params = []) => {
         const rows = await sql.unsafe(text, params);
