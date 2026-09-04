@@ -100,6 +100,35 @@ function createPostgres(url) {
 }
 
 /**
+ * PGlite is the DEVELOPMENT backend, and production must never reach it.
+ *
+ * It is an empty in-memory Postgres that seeds itself from `seed-dev.js` —
+ * five fake students and, worse, three working PG claim codes (K7M3QX,
+ * P4R8TW, B2C5DF). Booting on it in production would serve real students an
+ * empty database and make those demo codes live scanners.
+ *
+ * Today that fallback happens to crash anyway, because the migration .sql
+ * files are not in the serverless bundle. That is luck, not a guarantee:
+ * bundle one file differently and the app comes up on fixtures, quietly.
+ *
+ * Hit for real on 04/09/2026: the production build was two hours older than
+ * the DATABASE_URL variable, and Vercel freezes env vars at build time — so
+ * the running build never saw the variable and fell through to here. The
+ * message names that cause, because "DATABASE_URL is missing" sends people
+ * to check a setting that is already correct.
+ */
+export function assertDatabaseConfigured(url) {
+  if (url || process.env.NODE_ENV !== 'production') return;
+  throw new Error(
+    'DATABASE_URL trống trên production — dừng, KHÔNG chạy tiếp bằng database '
+    + 'tạm (PGlite): nó rỗng và chứa dữ liệu mẫu, kể cả mã máy quét demo. '
+    + 'Nguyên nhân thường gặp: biến môi trường được thêm SAU khi bản deploy này '
+    + 'được build. Vercel đóng băng biến lúc build, nên sửa biến thôi chưa đủ — '
+    + 'phải deploy lại production.',
+  );
+}
+
+/**
  * Singleton across hot reloads. Next.js re-evaluates modules in dev; without
  * the globalThis stash every reload would boot a fresh empty PGlite and
  * "lose" all registrations, which reads as a data-loss bug while developing.
@@ -107,6 +136,9 @@ function createPostgres(url) {
 export function getDb() {
   if (!globalThis.__atlDb) {
     const url = process.env.DATABASE_URL;
+    // Before the stash, so a misconfigured boot keeps failing loudly instead
+    // of caching a broken handle and going quiet on the second request.
+    assertDatabaseConfigured(url);
     globalThis.__atlDb = url ? createPostgres(url) : createPglite();
   }
   return globalThis.__atlDb;

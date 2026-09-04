@@ -298,6 +298,7 @@ Workflow đã có job `verify` chạy toàn bộ test **trước** khi deploy, k
 | Secret | Nơi lưu | Ghi chú |
 |---|---|---|
 | `ATL_HMAC_KEY` | Vercel env (production) | Khoá ký QR — **không bao giờ trong git, không bao giờ trong DB**. Code từ chối fallback sang khoá dev khi `NODE_ENV=production` |
+| `DATABASE_URL` | Vercel env | Chuỗi Supavisor **cổng 6543**. Thiếu nó trên production thì `@atl/db` **dừng hẳn**, không rơi về PGlite (rỗng + mã máy quét demo). ⚠️ Vercel **đóng băng biến lúc build** — sửa biến xong phải **deploy lại production**, nếu không bản đang chạy vẫn không thấy |
 | `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | GitHub Actions secrets | Cho workflow deploy thủ công |
 | Supabase service role key | Vercel env | Chỉ server-side, không lộ ra client |
 | Resend API key (`RESEND_API_KEY`) + `EMAIL_FROM` | Vercel env | Domain gửi phải là **subdomain riêng**, không dùng domain gốc |
