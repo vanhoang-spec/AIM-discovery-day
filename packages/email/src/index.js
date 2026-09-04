@@ -209,7 +209,7 @@ export function renderReminderEmail({ template, student, ev, agendaUrl, myUrl })
  * feed finish_outbox either way. Throws only on programmer errors.
  */
 export async function sendViaResend(
-  { from, to, subject, html, text, attachments = [] },
+  { from, to, subject, html, text, attachments = [], replyTo },
   { apiKey, fetchImpl = fetch } = {},
 ) {
   if (!apiKey) throw new Error('sendViaResend: apiKey is required');
@@ -226,6 +226,9 @@ export async function sendViaResend(
       body: JSON.stringify({
         from,
         to: [to],
+        // Resend spells it snake_case. Omitted entirely when absent — sending
+        // reply_to: undefined is fine in JS but an explicit null is not.
+        ...(replyTo ? { reply_to: [replyTo] } : {}),
         subject,
         html,
         text,

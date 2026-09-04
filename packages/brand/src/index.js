@@ -28,6 +28,12 @@ export const BRAND = {
 
   // Email (light-only — dark email renders badly across clients)
   email: {
+    // Where a student's "Reply" actually lands. The From address is a
+    // no-reply on the sending subdomain, and that subdomain has NO MX record
+    // by design — so without this, every reply bounces into nothing. With
+    // ~4.000 confirmations going out, some students WILL just hit reply.
+    // A different domain here is fine: SPF/DKIM/DMARC only ever check From.
+    replyTo: 'competition@aimacademy.vn',
     eyebrow: '#864C3C',
     calloutBg: '#F0E2DA',
     calloutBorder: '#864C3C',

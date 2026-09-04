@@ -109,6 +109,32 @@ describe('sendViaResend', () => {
     assert.equal(body.attachments[0].content_id, 'qr-code');
   });
 
+  test('reply_to is sent as an array, in Resend snake_case', async () => {
+    // The From address is a no-reply on a subdomain with NO MX record, so a
+    // missing reply_to means every student who hits "Reply" is talking to a
+    // black hole. Resend's own deliverability audit flags it too.
+    let body;
+    const fetchImpl = async (_u, init) => {
+      body = JSON.parse(init.body);
+      return { ok: true, json: async () => ({ id: 're_1' }) };
+    };
+    await sendViaResend({ ...msg, replyTo: 'competition@aimacademy.vn' },
+      { apiKey: 'k', fetchImpl });
+    assert.deepEqual(body.reply_to, ['competition@aimacademy.vn']);
+  });
+
+  test('no replyTo → the key is absent, not null', async () => {
+    // Resend rejects an explicit null; omitting the field is the only
+    // correct way to say "no reply address".
+    let body;
+    const fetchImpl = async (_u, init) => {
+      body = JSON.parse(init.body);
+      return { ok: true, json: async () => ({ id: 're_1' }) };
+    };
+    await sendViaResend(msg, { apiKey: 'k', fetchImpl });
+    assert.equal('reply_to' in body, false);
+  });
+
   test('HTTP failure returns ok:false with detail — it must NOT throw', async () => {
     const fetchImpl = async () => ({
       ok: false, status: 422, json: async () => ({ message: 'invalid from' }),
