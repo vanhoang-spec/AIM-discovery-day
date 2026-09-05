@@ -271,6 +271,64 @@ request đồng thời, vì client nằm trong `globalThis`. Đã thêm
 `idle_timeout: 20` vào `@atl/db` để instance rảnh trả chỗ về. **Phải đo số
 client đỉnh trong buổi §4.3** — chạm trần thì nâng compute Micro → Small.
 
+### 4.2b Đo khả năng vào inbox — 05/09 (thật, 11 thư tới 3 nền tảng)
+
+DNS Mắt Bão publish 04/09. Gửi thư thật qua đường ống production (đăng ký →
+outbox → cron → Resend) tới 8 địa chỉ trên 3 hệ lọc khác nhau.
+
+**Xác thực: hoàn hảo, không còn gì để sửa.** Header do Microsoft 365 ghi:
+
+```
+spf=pass      smtp.mailfrom=rsend.mail.awakenthelions.net
+dkim=pass     header.d=mail.awakenthelions.net
+dkim=pass     header.d=amazonses.com
+dmarc=pass    action=none
+compauth=pass reason=100          ← kết quả tốt nhất Microsoft có thể trả
+```
+
+| Nền tảng nhận | Kết quả | Chỉ số |
+|---|---|---|
+| **Gmail / Google Workspace** (5 địa chỉ) | **Inbox** | — |
+| Microsoft 365 (`tcmbtl.com`) | **Junk** | `SCL:5` · `CAT:SPM` · `BCL:0` · BulkCategory Promotions |
+| SpamAssassin / Exim (hosting Mắt Bão) | **Spam** | ghi `***SPAM***` vào tiêu đề |
+
+Đọc chỉ số Microsoft: `SCL:5` là **vừa chạm vạch** (7–9 mới là spam
+độ tin cậy cao). `BCL:0` nghĩa là **không** bị coi là thư hàng loạt.
+`CAT:SPM` là spam nội dung — **không phải** `SPOOF`/`PHISH`/`DMARC`,
+tức không phải lỗi xác thực. Nguyên nhân còn lại: **uy tín tên miền mới** —
+cả `mail.awakenthelions.net` lẫn `app.awakenthelions.net` (tên miền trong liên kết,
+Microsoft chấm nặng) đều mới sinh, gửi qua IP dùng chung của Amazon SES.
+
+⚠️ **Kết quả âm tính đáng ghi:** bỏ `noreply` khỏi `EMAIL_FROM` và thêm
+`List-Unsubscribe` đưa kiểm định Resend từ 11/12 lên **12/12 DOING GREAT**,
+nhưng **không** kéo được SCL xuống dưới 5. Hai bản vá đúng và đáng giữ, song
+chúng không phải nguyên nhân. Đừng kỳ vọng thêm header sẽ giải quyết việc này.
+
+#### Nền tảng thư của các trường mục tiêu (tra MX ngày 05/09)
+
+| Trường | Nền tảng | Dự đoán |
+|---|---|---|
+| **Ngoại thương (FTU)** — nơi tổ chức cả 2 điểm | Google | **Inbox** |
+| KHXH&NV TP.HCM · Kinh tế–Luật (UEL) | Google | Inbox |
+| Bách khoa Hà Nội · Kinh tế Quốc dân · RMIT | **Microsoft 365** | **Junk** |
+
+Nhóm đông nhất (FTU + Gmail cá nhân) an toàn. Đa số SV Việt Nam điền Gmail
+cá nhân chứ không điền email trường, nên phần phơi nhiễm nhỏ hơn bảng trên.
+
+**Quyết định đã gỡ bỏ:** không chuyển sang tên miền con của `aimacademy.vn`.
+Phương án đó chỉ đặt ra phòng khi Gmail cũng hỏng — Gmail vào inbox nên bỏ,
+tránh thêm một vòng DNS và tránh đặt uy tín hộp thư chính của AIM vào rủi ro.
+
+**Rủi ro còn lại là cú tăng sản lượng, không phải xác thực.** Tên miền mới gửi
+11 thư; thư nhắc D-3 sẽ gửi ~4.000. Worker outbox chạy **40 thư/phút** nên
+4.000 thư trải ra ~100 phút — nhịp lành với Gmail. **Giữ nguyên 40/phút, đừng
+tăng cho nhanh.** Và **mở đăng ký sớm** để tên miền có lịch sử gửi đều cho
+người thật trước ngày cao điểm — đây là lý do kỹ thuật, không chỉ marketing.
+
+**Việc vận hành cho AIM:** nhân sự AIM dùng M365 và nhà tài trợ dùng thư doanh
+nghiệp sẽ thấy thư trong Junk → thêm allow-list nội bộ. Sinh viên các trường
+chạy Microsoft nên được nhắc điền Gmail cá nhân khi đăng ký.
+
 ### 4.3 Mô phỏng ngày sự kiện — 08/09
 - Chạy song song 45 phút, giả lập tải thực (36 req/giây nền + đỉnh cổng 17 người/phút/lane).
 - Tiêu chí: **p95 dưới 600ms**; gửi 4.000 email test đạt **≥95% vào inbox** trên ít nhất 3 nhà cung cấp.
@@ -287,7 +345,13 @@ client đỉnh trong buổi §4.3** — chạm trần thì nâng compute Micro �
 Bất kỳ điều nào chưa đạt thì **hoãn tính năng đó, không hoãn cả sự kiện** — chuyển sang quy trình giấy đã thiết kế sẵn:
 - ~~T1–T7 chưa xanh trên Supabase thật.~~ `✅` 7/7 ngày 04/09 — xem §4.2.
 - Số client đỉnh chạm trần 200 của pooler trong buổi mô phỏng §4.3 (chưa đo).
-- **SPF/DKIM/DMARC chưa publish** — email sẽ vào spam hàng loạt. Đây là mục duy nhất **không có đường lui** ngoài dời ngày, vì sau khi bỏ SMS thì email là kênh gửi mã duy nhất.
+- ~~**SPF/DKIM/DMARC chưa publish**~~ `✅` publish 04/09, đo thật 05/09:
+  `dmarc=pass` `compauth=pass reason=100`, Gmail vào Inbox — xem §4.2b.
+  Còn lại là uy tín tên miền mới, giảm bằng cách mở đăng ký sớm để gửi đều.
+  *Ghi chú lại một câu của v1.1:* "email là kênh gửi mã duy nhất" **không**
+  đúng — mã QR hiện ngay trên màn hình lúc đăng ký, lưu localStorage, và
+  `/toi` render offline (AC4, AC7, AC14b). Thứ thật sự phụ thuộc email là
+  **các thư nhắc D-3 / D-1 / sáng ngày sự kiện**, vốn kéo tỉ lệ đi thật.
 
 *(v1.0 liệt "chưa có SMS brandname" vào đây — đã gỡ, xem §1.3.)*
 
