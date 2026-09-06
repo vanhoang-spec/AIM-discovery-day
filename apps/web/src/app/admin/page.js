@@ -18,7 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const KEY_STORE = 'atl_admin_key';
 const ACTOR_STORE = 'atl_admin_actor';
-const EVENT_ID = 1;
+const EVENT_STORE = 'atl_admin_event';
 
 function useAdminFetch(accessKey) {
   return useCallback(async (path, init = {}) => {
@@ -40,7 +40,7 @@ const t = (iso) => iso ? new Date(iso).toLocaleTimeString('vi-VN', { hour12: fal
 
 /* ---------------- Tổng quan ---------------- */
 
-function Overview({ api, actor }) {
+function Overview({ api, actor, eventId }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [gMsg, setGMsg] = useState(null);
@@ -50,7 +50,7 @@ function Overview({ api, actor }) {
     try {
       await api('/api/admin/golden', {
         method: 'POST',
-        body: JSON.stringify({ event: EVENT_ID, actor, ...body }),
+        body: JSON.stringify({ event: eventId, actor, ...body }),
       });
       setGMsg(null);
     } catch (e) { setGMsg(e.message); }
@@ -60,14 +60,14 @@ function Overview({ api, actor }) {
     let alive = true;
     const tick = async () => {
       try {
-        const d = await api(`/api/admin/overview?event=${EVENT_ID}`);
+        const d = await api(`/api/admin/overview?event=${eventId}`);
         if (alive) { setData(d); setErr(null); }
       } catch (e) { if (alive) setErr(e.message); }
     };
     tick();
     const iv = setInterval(tick, 5000);
     return () => { alive = false; clearInterval(iv); };
-  }, [api]);
+  }, [api, eventId]);
 
   if (err) return <p className="admin-err">Lỗi tải dashboard: {err}</p>;
   if (!data) return <p className="muted">Đang tải…</p>;
@@ -204,7 +204,7 @@ Nhớ báo MC và cắm biển zone.`)) {
 
 /* ---------------- Sinh viên ---------------- */
 
-function Students({ api, actor }) {
+function Students({ api, actor, eventId }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [detail, setDetail] = useState(null);
@@ -217,24 +217,24 @@ function Students({ api, actor }) {
     debounce.current = setTimeout(async () => {
       if (!text.trim()) { setResults([]); return; }
       try {
-        const d = await api(`/api/admin/students?event=${EVENT_ID}&q=${encodeURIComponent(text)}`);
+        const d = await api(`/api/admin/students?event=${eventId}&q=${encodeURIComponent(text)}`);
         setResults(d.students);
       } catch (e) { setMsg({ bad: true, text: e.message }); }
     }, 250);
-  }, [api]);
+  }, [api, eventId]);
 
   const open = useCallback(async (id) => {
     setMsg(null);
-    const d = await api(`/api/admin/students/${id}?event=${EVENT_ID}`);
+    const d = await api(`/api/admin/students/${id}?event=${eventId}`);
     setDetail(d);
     setForm({ action: 'award', checkpoint_id: d.awardable[0]?.id ?? '', reason: '' });
-  }, [api]);
+  }, [api, eventId]);
 
   const act = async (action, checkpointId, reason) => {
     try {
       const r = await api(`/api/admin/students/${detail.student.id}`, {
         method: 'POST',
-        body: JSON.stringify({ event: EVENT_ID, action, checkpoint_id: checkpointId, reason, actor }),
+        body: JSON.stringify({ event: eventId, action, checkpoint_id: checkpointId, reason, actor }),
       });
       setMsg({ bad: false, text: `Xong — badge hiện tại: ${r.badge_count}` });
       open(detail.student.id);
@@ -329,13 +329,13 @@ function Students({ api, actor }) {
 
 /* ---------------- Cấu hình ---------------- */
 
-function Config({ api, actor }) {
+function Config({ api, actor, eventId }) {
   const [cfg, setCfg] = useState(null);
   const [msg, setMsg] = useState(null);
 
   const load = useCallback(async () => {
-    setCfg(await api(`/api/admin/config?event=${EVENT_ID}`));
-  }, [api]);
+    setCfg(await api(`/api/admin/config?event=${eventId}`));
+  }, [api, eventId]);
   useEffect(() => { load().catch((e) => setMsg({ bad: true, text: e.message })); }, [load]);
 
   const patch = async (body) => {
@@ -343,7 +343,7 @@ function Config({ api, actor }) {
     try {
       const r = await api('/api/admin/config', {
         method: 'PATCH',
-        body: JSON.stringify({ event: EVENT_ID, actor, ...body }),
+        body: JSON.stringify({ event: eventId, actor, ...body }),
       });
       if (r.dry_run) {
         if (window.confirm(`${r.message}\n\nTiếp tục?`)) {
@@ -430,7 +430,7 @@ function Config({ api, actor }) {
             await api('/api/admin/config', {
               method: 'POST',
               body: JSON.stringify({
-                event: EVENT_ID, actor,
+                event: eventId, actor,
                 tier: Number(document.getElementById('gt-tier').value),
                 gift_name: document.getElementById('gt-name').value.trim(),
                 required_badges: Number(document.getElementById('gt-req').value),
@@ -459,7 +459,7 @@ function Config({ api, actor }) {
           const r = await api('/api/admin/clone', {
             method: 'POST',
             body: JSON.stringify({
-              source_event: EVENT_ID, actor,
+              source_event: eventId, actor,
               slug: f.slug.value, name: f.evname.value,
               venue: f.venue.value, city: f.city.value,
               starts_at: f.date.value + 'T08:00:00+07:00',
@@ -488,20 +488,20 @@ function Config({ api, actor }) {
 
 /* ---------------- Hoạt động ---------------- */
 
-function Checkpoints({ api, actor }) {
+function Checkpoints({ api, actor, eventId }) {
   const [cfg, setCfg] = useState(null);
   const [msg, setMsg] = useState(null);
   const [draft, setDraft] = useState(null); // {id?} being edited, or {new:true}
 
   const load = useCallback(async () => {
-    setCfg(await api(`/api/admin/config?event=${EVENT_ID}`));
-  }, [api]);
+    setCfg(await api(`/api/admin/config?event=${eventId}`));
+  }, [api, eventId]);
   useEffect(() => { load().catch((e) => setMsg({ bad: true, text: e.message })); }, [load]);
 
   const save = async () => {
     setMsg(null);
     try {
-      const body = { event: EVENT_ID, actor, ...draft };
+      const body = { event: eventId, actor, ...draft };
       const r = draft.new
         ? await api('/api/admin/checkpoints', { method: 'POST', body: JSON.stringify(body) })
         : await api('/api/admin/checkpoints', { method: 'PATCH', body: JSON.stringify(body) });
@@ -546,7 +546,7 @@ function Checkpoints({ api, actor }) {
                   <button type="button" className="admin-btn" title="Excel cho nhà tài trợ này"
                     onClick={async () => {
                       const res = await fetch(
-                        `/api/admin/export-ntt?event=${EVENT_ID}&checkpoint=${c.id}`,
+                        `/api/admin/export-ntt?event=${eventId}&checkpoint=${c.id}`,
                         { headers: { Authorization: `Bearer ${localStorage.getItem('atl_admin_key')}` } });
                       if (!res.ok) return;
                       const blob = await res.blob();
@@ -568,7 +568,7 @@ function Checkpoints({ api, actor }) {
                   void reason;
                   api('/api/admin/checkpoints', {
                     method: 'PATCH',
-                    body: JSON.stringify({ event: EVENT_ID, actor, id: c.id,
+                    body: JSON.stringify({ event: eventId, actor, id: c.id,
                                            counts_toward_badges: !c.counts_toward_badges }),
                   }).then((r) => {
                     setMsg({ bad: false, text: r.rebuilt ? `Đã đổi — tính lại ${r.rebuilt} SV.` : 'Đã đổi.' });
@@ -578,7 +578,7 @@ function Checkpoints({ api, actor }) {
                 <button type="button" className="admin-btn" onClick={() => {
                   api('/api/admin/checkpoints', {
                     method: 'PATCH',
-                    body: JSON.stringify({ event: EVENT_ID, actor, id: c.id, is_active: !c.is_active }),
+                    body: JSON.stringify({ event: eventId, actor, id: c.id, is_active: !c.is_active }),
                   }).then(() => load()).catch((e) => setMsg({ bad: true, text: e.message }));
                 }}>{c.is_active ? 'Tắt' : 'Mở'}</button>
               </td>
@@ -598,7 +598,7 @@ function Checkpoints({ api, actor }) {
             if (!nm) return;
             api('/api/admin/zones', {
               method: 'POST',
-              body: JSON.stringify({ event: EVENT_ID, actor, name: nm }),
+              body: JSON.stringify({ event: eventId, actor, name: nm }),
             }).then(() => { setMsg({ bad: false, text: 'Đã tạo zone.' }); load(); })
               .catch((e) => setMsg({ bad: true, text: e.message }));
           }}>+ Tạo zone</button>
@@ -722,21 +722,21 @@ function SurveyEditor({ initial, booths, onSave, onCancel, busy }) {
   );
 }
 
-function Surveys({ api, actor }) {
+function Surveys({ api, actor, eventId }) {
   const [data, setData] = useState(null);
   const [draft, setDraft] = useState(null);
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    setData(await api(`/api/admin/surveys?event=${EVENT_ID}`));
-  }, [api]);
+    setData(await api(`/api/admin/surveys?event=${eventId}`));
+  }, [api, eventId]);
   useEffect(() => { load().catch((e) => setMsg({ bad: true, text: e.message })); }, [load]);
 
   const save = async (f) => {
     setBusy(true); setMsg(null);
     try {
-      const body = { event: EVENT_ID, actor, ...f };
+      const body = { event: eventId, actor, ...f };
       const r = f.id
         ? await api('/api/admin/surveys', { method: 'PATCH', body: JSON.stringify(body) })
         : await api('/api/admin/surveys', { method: 'POST', body: JSON.stringify(body) });
@@ -775,7 +775,7 @@ function Surveys({ api, actor }) {
                 <button type="button" className="admin-btn" onClick={() =>
                   api('/api/admin/surveys', {
                     method: 'PATCH',
-                    body: JSON.stringify({ event: EVENT_ID, actor, id: sv.survey_id,
+                    body: JSON.stringify({ event: eventId, actor, id: sv.survey_id,
                                            is_active: !sv.is_active }),
                   }).then(load).catch((e) => setMsg({ bad: true, text: e.message }))
                 }>{sv.is_active ? 'Tắt' : 'Mở'}</button>
@@ -807,7 +807,7 @@ function Surveys({ api, actor }) {
 
 /* ---------------- Vận hành (Layer B) ---------------- */
 
-function Ops({ api, actor }) {
+function Ops({ api, actor, eventId }) {
   const [cfg, setCfg] = useState(null);      // từ /api/admin/config (event + checkpoints)
   const [dev, setDev] = useState(null);      // từ /api/admin/pg-devices
   const [specials, setSpecials] = useState(null);
@@ -815,18 +815,18 @@ function Ops({ api, actor }) {
 
   const load = useCallback(async () => {
     const [c, d, sp] = await Promise.all([
-      api(`/api/admin/config?event=${EVENT_ID}`),
-      api(`/api/admin/pg-devices?event=${EVENT_ID}`),
-      api(`/api/admin/specials?event=${EVENT_ID}`),
+      api(`/api/admin/config?event=${eventId}`),
+      api(`/api/admin/pg-devices?event=${eventId}`),
+      api(`/api/admin/specials?event=${eventId}`),
     ]);
     setCfg(c); setDev(d); setSpecials(sp.activities);
-  }, [api]);
+  }, [api, eventId]);
   useEffect(() => { load().catch((e) => setMsg({ bad: true, text: e.message })); }, [load]);
 
   const call = async (path, method, body, okText = 'Đã lưu.') => {
     setMsg(null);
     try {
-      const r = await api(path, { method, body: JSON.stringify({ event: EVENT_ID, actor, ...body }) });
+      const r = await api(path, { method, body: JSON.stringify({ event: eventId, actor, ...body }) });
       setMsg({ bad: false, text: r.claim_code ? `Đã tạo — mã nhận máy: ${r.claim_code}` : okText });
       load();
       return r;
@@ -1015,7 +1015,7 @@ function Ops({ api, actor }) {
 
 /* ---------------- Đối soát (AC26) ---------------- */
 
-function Reconcile({ api, actor }) {
+function Reconcile({ api, actor, eventId }) {
   const [data, setData] = useState(null);
   const [q, setQ] = useState('');
   const [hits, setHits] = useState([]);
@@ -1024,15 +1024,15 @@ function Reconcile({ api, actor }) {
   const debounce = useRef(null);
 
   const load = useCallback(async () => {
-    setData(await api(`/api/admin/reconcile?event=${EVENT_ID}`));
-  }, [api]);
+    setData(await api(`/api/admin/reconcile?event=${eventId}`));
+  }, [api, eventId]);
   useEffect(() => { load().catch((e) => setMsg({ bad: true, text: e.message })); }, [load]);
 
   const search = (text) => {
     clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
       if (!text.trim()) { setHits([]); return; }
-      const d = await api(`/api/admin/students?event=${EVENT_ID}&q=${encodeURIComponent(text)}`);
+      const d = await api(`/api/admin/students?event=${eventId}&q=${encodeURIComponent(text)}`);
       setHits(d.students);
     }, 250);
   };
@@ -1042,7 +1042,7 @@ function Reconcile({ api, actor }) {
     try {
       const r = await api('/api/admin/reconcile', {
         method: 'POST',
-        body: JSON.stringify({ event: EVENT_ID, actor, student_id: sv.id, ...body }),
+        body: JSON.stringify({ event: eventId, actor, student_id: sv.id, ...body }),
       });
       setMsg({ bad: false, text: r.gift ? `Đã ghi: ${r.gift} (kho còn ${r.remaining})`
                                         : `Đã ghi: suất số ${r.slot_no}` });
@@ -1140,10 +1140,28 @@ export default function AdminPage() {
   const [key, setKey] = useState(undefined);
   const [actor, setActor] = useState('');
   const [tab, setTab] = useState('overview');
+  // Điểm đang xem. Trước đây là hằng số 1 dùng 27 chỗ, nên bảng điều khiển
+  // chỉ chạm tới Hà Nội — và không hề nói ra điều đó. Ngày 12/09 hai điểm
+  // chạy song song; người trực TP.HCM mở lên sẽ thấy số của Hà Nội và tưởng
+  // là của mình. Mọi API phía sau vốn đã nhận tham số `event`, nên chỗ thiếu
+  // duy nhất là ô chọn này.
+  const [eventId, setEventId] = useState(1);
+  const [events, setEvents] = useState([]);
 
   useEffect(() => {
     setKey(localStorage.getItem(KEY_STORE) ?? '');
     setActor(localStorage.getItem(ACTOR_STORE) ?? '');
+    const saved = Number(localStorage.getItem(EVENT_STORE));
+    if (saved) setEventId(saved);
+  }, []);
+
+  // refdata trả MỌI sự kiện kèm cờ mở/đóng (xem api/refdata/route.js), kể cả
+  // khi đăng ký đang đóng — nên danh sách này không rỗng vào ngày sự kiện.
+  useEffect(() => {
+    fetch('/api/refdata')
+      .then((r) => r.json())
+      .then((d) => setEvents(d.events ?? []))
+      .catch(() => setEvents([]));
   }, []);
 
   const api = useAdminFetch(key || '');
@@ -1179,11 +1197,27 @@ export default function AdminPage() {
     <main className="wrap admin admin-wide">
       <header className="admin-head">
         <h1>ATL2026 — Điều khiển</h1>
+        {/* Tên điểm đứng ngay cạnh tiêu đề, không giấu trong menu: nhìn nhầm
+            điểm là sai mọi con số bên dưới. */}
+        <select
+          className="admin-input" style={{ maxWidth: 260 }}
+          value={eventId}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            setEventId(v);
+            localStorage.setItem(EVENT_STORE, String(v));
+          }}
+        >
+          {events.length === 0 && <option value={eventId}>Đang tải điểm…</option>}
+          {events.map((ev) => (
+            <option key={ev.id} value={ev.id}>{ev.city} — {ev.name}</option>
+          ))}
+        </select>
         <span className="muted">{actor}</span>
         <button type="button" className="admin-btn" onClick={async () => {
           // fetch + blob so the Authorization header rides along — a plain
           // <a href> cannot carry it.
-          const res = await fetch(`/api/admin/export?event=${EVENT_ID}`, {
+          const res = await fetch(`/api/admin/export?event=${eventId}`, {
             headers: { Authorization: `Bearer ${key}` },
           });
           if (!res.ok) return;
@@ -1212,13 +1246,13 @@ export default function AdminPage() {
           >{label}</button>
         ))}
       </nav>
-      {tab === 'overview' && <Overview api={api} actor={actor} />}
-      {tab === 'students' && <Students api={api} actor={actor} />}
-      {tab === 'config' && <Config api={api} actor={actor} />}
-      {tab === 'checkpoints' && <Checkpoints api={api} actor={actor} />}
-      {tab === 'surveys' && <Surveys api={api} actor={actor} />}
-      {tab === 'ops' && <Ops api={api} actor={actor} />}
-      {tab === 'reconcile' && <Reconcile api={api} actor={actor} />}
+      {tab === 'overview' && <Overview key={eventId} api={api} actor={actor} eventId={eventId} />}
+      {tab === 'students' && <Students key={eventId} api={api} actor={actor} eventId={eventId} />}
+      {tab === 'config' && <Config key={eventId} api={api} actor={actor} eventId={eventId} />}
+      {tab === 'checkpoints' && <Checkpoints key={eventId} api={api} actor={actor} eventId={eventId} />}
+      {tab === 'surveys' && <Surveys key={eventId} api={api} actor={actor} eventId={eventId} />}
+      {tab === 'ops' && <Ops key={eventId} api={api} actor={actor} eventId={eventId} />}
+      {tab === 'reconcile' && <Reconcile key={eventId} api={api} actor={actor} eventId={eventId} />}
     </main>
   );
 }
