@@ -121,24 +121,76 @@ function createPostgres(url) {
     // between bursts the slot goes back to the pool. Measured for real in
     // the §4.3 load rehearsal — treat this number as a starting point.
     //
-    // connect_timeout: fail loudly instead of hanging. On 06/09 /api/refdata
-    // and /api/admin/overview sat silent for ~5 minutes ("Task timed out")
-    // after ~9 hours with no traffic, while the cron route on the same
-    // database answered every minute. Root cause NOT established; the
-    // idle_timeout hypothesis was tested (45s idle, twice) and did not
-    // reproduce. What IS certain: a stalled connect that eats the whole
-    // function budget is the worst outcome — the registration form already
-    // retries 3× on a fast error, and nothing retries a 60-second hang.
-    // 10s is generous for a handshake to Singapore (normally ~100ms) and
-    // still leaves the 15s default function budget room to respond.
+    // connect_timeout: a stalled handshake fails in 10s instead of eating the
+    // function budget. Added 06/09 as a defensive guess; the real cause of
+    // that day's hang turned out to be pipelining (see serializeQueries) —
+    // kept anyway, a handshake to Singapore is ~100ms and 10s is generous.
     const sql = postgres(url, POSTGRES_OPTIONS);
-    return {
-      query: async (text, params = []) => {
-        const rows = await sql.unsafe(text, params);
-        return { rows };
-      },
-      kind: 'postgres',
-    };
+    const query = serializeQueries((text, params) => sql.unsafe(text, params), QUERY_TIMEOUT_MS);
+    return { query, kind: 'postgres' };
+  });
+}
+
+/** Hard cap on one statement. Why it exists: see serializeQueries. */
+export const QUERY_TIMEOUT_MS = 10_000;
+
+/**
+ * One statement in flight per connection, and none allowed to run forever.
+ *
+ * THE INCIDENT — 06/09, then reproduced on demand during the 07/09 load
+ * rehearsal. postgres.js with `max: 1` PIPELINES concurrent queries onto its
+ * single socket: a route doing `Promise.all([q1, q2, q3])` puts three
+ * statements on the wire back to back. Supavisor in transaction mode does
+ * not cope with pipelined clients. pg_stat_activity showed backends `active`
+ * on wait_event `ClientRead` for 7+ minutes — Postgres mid-conversation,
+ * waiting for a client that had gone silent — and every one of them was
+ * running /api/admin/overview's first statement. The two routes built on
+ * Promise.all (/api/refdata, /api/admin/overview) failed 96% of attempts at
+ * a mere 2 req/s, each hang holding a function and a pooler slot for a
+ * minute or more; the cron route, which queries sequentially, never failed
+ * once in the same window. Vercel Fluid Compute makes it worse: concurrent
+ * requests share an instance, so they share the one connection, so they
+ * pipeline.
+ *
+ * Fix 1 — serialize. A promise chain guarantees at most one statement is on
+ * the wire per connection. Cost: one extra round-trip (~50ms) per extra
+ * query; refdata goes from 3 parallel to 3 sequential. Cheap, and it removes
+ * the failure mode rather than papering over it.
+ *
+ * Fix 2 — timeout + cancel. A statement that has not answered in
+ * QUERY_TIMEOUT_MS rejects, and postgres.js's `.cancel()` sends
+ * pg_cancel_backend so the backend is released instead of sitting in
+ * ClientRead until Vercel reaps the function. The route turns that into a
+ * fast 5xx; the registration form already retries — a 10-second error
+ * self-heals, a 5-minute hang does not.
+ *
+ * Pure on purpose: `runner(text, params)` returns a thenable (postgres.js's
+ * PendingQuery), so the tests drive it with fakes and never open a socket.
+ */
+export function serializeQueries(runner, timeoutMs = QUERY_TIMEOUT_MS) {
+  let chain = Promise.resolve();
+  return function query(text, params = []) {
+    const run = chain.then(() => withTimeout(runner(text, params), timeoutMs, text));
+    // A failure must not poison the chain for the next caller.
+    chain = run.then(() => {}, () => {});
+    return run.then((rows) => ({ rows }));
+  };
+}
+
+function withTimeout(pending, ms, text) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      // Release the backend, not just our promise. postgres.js queries carry
+      // cancel(); a test fake may not — hence the optional call.
+      try { pending.cancel?.(); } catch { /* best effort */ }
+      reject(new Error(
+        `[@atl/db] truy vấn quá ${ms}ms, đã huỷ: ${String(text).replace(/\s+/g, ' ').slice(0, 80)}`,
+      ));
+    }, ms);
+    Promise.resolve(pending).then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
   });
 }
 

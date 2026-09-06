@@ -3,6 +3,18 @@
 Quy ước: sửa package này thì thêm một dòng vào đây trong CÙNG commit.
 Mốc ổn định của cả engine là git tag `engine-vX.Y.Z` — xem docs/FORK-PLAYBOOK.md.
 
+## 1.0.4 — 2026-09-07
+- `serializeQueries` + `QUERY_TIMEOUT_MS = 10s` có huỷ truy vấn. NGUYÊN NHÂN GỐC của cú
+  treo 06/09, tái hiện theo ý muốn trong buổi mô phỏng tải 07/09: postgres.js
+  với `max: 1` PIPELINE các truy vấn đồng thời lên một socket; Supavisor chế độ
+  transaction không chịu được client pipelining. pg_stat_activity: backend
+  `active` chờ `ClientRead` 7+ phút, tất cả đang chạy câu đầu của
+  /api/admin/overview. Hai route dùng Promise.all (refdata, overview) hỏng 96%
+  ở 2 req/s; cron truy vấn tuần tự không hỏng lần nào. Fluid Compute làm nặng
+  thêm (nhiều request chung một instance → chung một kết nối). Sửa: tuần tự hoá
+  từng statement trên mỗi kết nối + timeout 10s gọi `.cancel()` để nhả backend.
+  6 test thuần (không mở socket) ghim hai tính chất đó.
+
 ## 1.0.3 — 2026-09-06
 - `connect_timeout: 10`. Ngày 06/09 `/api/refdata` và `/api/admin/overview` treo ~5 phút
   ("Task timed out") sau ~9 giờ không có lưu lượng, trong khi cron cùng database

@@ -329,7 +329,48 @@ người thật trước ngày cao điểm — đây là lý do kỹ thuật, kh
 nghiệp sẽ thấy thư trong Junk → thêm allow-list nội bộ. Sinh viên các trường
 chạy Microsoft nên được nhắc điền Gmail cá nhân khi đăng ký.
 
-### 4.3 Mô phỏng ngày sự kiện — 08/09
+### 4.3 Mô phỏng ngày sự kiện — chạy sớm 07/09 (kết quả thật)
+
+Chạy trên production, **chỉ đường đọc** (ledger append-only, project nháp đã xoá
+nên tải ghi chưa chạy). Tải nền 8 phút @ 36 req/s đúng hỗn hợp thật, cộng kịch
+bản "nguội ≥ 30 phút rồi gọi dồn" vào `/api/refdata`.
+
+| Đường | Kết quả |
+|---|---|
+| `/api/refdata` qua CDN (12.000 req) | **100%** · p95 **94 ms** |
+| `/lich`, `/dang-ky` (4.300 req) | 100% · p95 ~115 ms |
+| `/api/refdata` ép xuống DB, chỉ **2 req/s** | **4% thành công** · p50 = 60 s · **120 hàm treo cùng lúc** |
+| Nguội → dồn 300 req qua CDN | 293 OK · **7 request treo 60 s** |
+| Nguội → dồn 150 req xuống DB | **46 OK (31%) · 103 treo · 1 lỗi 500** |
+| Một request để yên | **504 sau đúng 300 s** — Vercel giữ hàm treo 5 phút (Fluid Compute) |
+
+**Nguyên nhân gốc — đã chốt bằng `pg_stat_activity`:** backend `active` chờ
+`ClientRead` **7+ phút**, tất cả đang chạy câu đầu của `/api/admin/overview`. Đây là
+chữ ký của client bỏ dở cuộc hội thoại: postgres.js với `max: 1` **pipeline** các
+truy vấn đồng thời (`Promise.all`) lên một socket, còn **Supavisor chế độ transaction
+không chịu được client pipelining**. Hai route dùng Promise.all (refdata, overview)
+hỏng; cron truy vấn tuần tự không hỏng lần nào trong cùng khoảng thời gian. Fluid
+Compute làm nặng thêm vì nhiều request chung một instance → chung một kết nối.
+Pool backend **không** đầy (9/15) và trần 200 client **không** chạm — hai nghi can
+ban đầu đều được minh oan bằng số liệu.
+
+**Sửa (@atl/db 1.0.4):** `serializeQueries` — một statement trên dây mỗi kết nối,
+không bao giờ pipeline; + `QUERY_TIMEOUT_MS = 10s` gọi `.cancel()` để nhả backend
+thay vì treo tới khi Vercel thu hồi hàm sau 5 phút. Kiểm chứng lại bằng đúng kịch
+bản nguội → dồn sau khi deploy (ghi kết quả bên dưới).
+
+**Chưa đo:** số client đỉnh (dashboard Supabase không tải được biểu đồ; nhưng
+nguyên nhân đã rõ không phải trần này), tải ghi quét/đổi quà (cần project nháp),
+4.000 email test (không gửi).
+
+**Rule cảnh báo Vercel không kích hoạt** trong suốt 8 phút với ~920 request treo —
+vì Vercel chỉ coi là lỗi khi hàm chết ở giây 300, và bộ dò bất thường cần nền lưu
+lượng. Đừng trông cậy vào nó để phát hiện kiểu treo này; `QUERY_TIMEOUT_MS` mới là
+thứ biến treo thành lỗi 5xx nhìn thấy được.
+
+Tiêu chí gốc vẫn giữ nguyên bên dưới cho lần chạy đủ (có tải ghi) trước 10/09:
+
+### 4.3 (gốc) Mô phỏng ngày sự kiện — 08/09
 - Chạy song song 45 phút, giả lập tải thực (36 req/giây nền + đỉnh cổng 17 người/phút/lane).
 - Tiêu chí: **p95 dưới 600ms**; gửi 4.000 email test đạt **≥95% vào inbox** trên ít nhất 3 nhà cung cấp.
 
