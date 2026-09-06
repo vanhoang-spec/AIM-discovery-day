@@ -76,3 +76,20 @@ describe('getDb', () => {
     assert.equal(globalThis.__atlDb, undefined);
   });
 });
+
+describe('POSTGRES_OPTIONS', () => {
+  // Each of these was added after a real incident. A refactor that drops one
+  // will pass every other test and fail on event day, so pin them here.
+  test('the four production settings are exactly what they must be', async () => {
+    const { POSTGRES_OPTIONS: o } = await import('../src/index.js');
+    assert.equal(o.max, 1, 'max:1 — 50 instances × pool of 10 is how max_connections dies');
+    assert.equal(o.prepare, false, 'prepare:false — named statements break behind Supavisor');
+    assert.equal(o.idle_timeout, 20, 'idle_timeout — warm-but-idle instances must release their slot');
+    assert.equal(o.connect_timeout, 10, 'connect_timeout — 06/09: a stalled connect ate the whole function budget');
+  });
+
+  test('is frozen — nothing can quietly mutate it at runtime', async () => {
+    const { POSTGRES_OPTIONS: o } = await import('../src/index.js');
+    assert.ok(Object.isFrozen(o));
+  });
+});

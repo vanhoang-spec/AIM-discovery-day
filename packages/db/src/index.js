@@ -84,6 +84,18 @@ function assertConnectionString(url) {
   }
 }
 
+/**
+ * The four numbers that decide whether the app survives 08:00 on 12/09.
+ * Exported so a test can pin them — each one was added after a real
+ * incident, and each is the kind of thing a well-meaning cleanup deletes.
+ */
+export const POSTGRES_OPTIONS = Object.freeze({
+  max: 1,              // one connection per serverless instance (§ header)
+  prepare: false,      // named statements break behind a transaction pooler
+  idle_timeout: 20,    // return the slot to the 200-client cap when idle
+  connect_timeout: 10, // a stalled handshake fails fast instead of hanging
+});
+
 function createPostgres(url) {
   assertConnectionString(url);
   // Lazy import so the dev path never pays for it.
@@ -108,7 +120,18 @@ function createPostgres(url) {
     // never goes idle that long, so the hot path keeps its handshake saving;
     // between bursts the slot goes back to the pool. Measured for real in
     // the §4.3 load rehearsal — treat this number as a starting point.
-    const sql = postgres(url, { max: 1, prepare: false, idle_timeout: 20 });
+    //
+    // connect_timeout: fail loudly instead of hanging. On 06/09 /api/refdata
+    // and /api/admin/overview sat silent for ~5 minutes ("Task timed out")
+    // after ~9 hours with no traffic, while the cron route on the same
+    // database answered every minute. Root cause NOT established; the
+    // idle_timeout hypothesis was tested (45s idle, twice) and did not
+    // reproduce. What IS certain: a stalled connect that eats the whole
+    // function budget is the worst outcome — the registration form already
+    // retries 3× on a fast error, and nothing retries a 60-second hang.
+    // 10s is generous for a handshake to Singapore (normally ~100ms) and
+    // still leaves the 15s default function budget room to respond.
+    const sql = postgres(url, POSTGRES_OPTIONS);
     return {
       query: async (text, params = []) => {
         const rows = await sql.unsafe(text, params);

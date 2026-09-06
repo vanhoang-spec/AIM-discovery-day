@@ -3,6 +3,15 @@
 Quy ước: sửa package này thì thêm một dòng vào đây trong CÙNG commit.
 Mốc ổn định của cả engine là git tag `engine-vX.Y.Z` — xem docs/FORK-PLAYBOOK.md.
 
+## 1.0.3 — 2026-09-06
+- `connect_timeout: 10`. Ngày 06/09 `/api/refdata` và `/api/admin/overview` treo ~5 phút
+  ("Task timed out") sau ~9 giờ không có lưu lượng, trong khi cron cùng database
+  vẫn 200 mỗi phút. Nguyên nhân gốc CHƯA chốt; giả thuyết idle_timeout đã thử
+  (để yên 45s, hai lần) và không tái hiện. Điều chắc chắn: kết nối stall mà nuốt
+  trọn thời gian hàm là kết cục tệ nhất — form đăng ký có retry 3× khi lỗi nhanh,
+  không gì retry được một cú treo 60 giây. Bốn tham số kết nối gom vào
+  `POSTGRES_OPTIONS` (frozen, export) và có test ghim từng giá trị.
+
 ## 1.0.2 — 2026-09-04
 - `idle_timeout: 20` cho kết nối Supabase. Supavisor chặn cứng 200 CLIENT
   (Micro, dashboard ghi "cannot be changed") và trả EMAXCONN chứ không xếp
