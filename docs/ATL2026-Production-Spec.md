@@ -356,8 +356,20 @@ ban đầu đều được minh oan bằng số liệu.
 
 **Sửa (@atl/db 1.0.4):** `serializeQueries` — một statement trên dây mỗi kết nối,
 không bao giờ pipeline; + `QUERY_TIMEOUT_MS = 10s` gọi `.cancel()` để nhả backend
-thay vì treo tới khi Vercel thu hồi hàm sau 5 phút. Kiểm chứng lại bằng đúng kịch
-bản nguội → dồn sau khi deploy (ghi kết quả bên dưới).
+thay vì treo tới khi Vercel thu hồi hàm sau 5 phút.
+
+**Kiểm chứng sau deploy `be48fdd` (07/09 00:35, cùng kịch bản, cùng script):**
+
+| Kịch bản | Trước vá | Sau vá |
+|---|---|---|
+| 150 request đồng thời ép xuống DB | 31% OK · p50 60 s · 103 treo | **150/150 (100%)** · p50 1,2 s · p95 1,3 s · max 1,4 s |
+| 2 req/s × 120 s ép xuống DB | 4% OK · 110 timeout | **240/240 (100%)** · p50 232 ms · p95 277 ms · max 347 ms |
+
+Không còn request nào vượt 1,5 s; không có 5xx; không có timeout. Đường DB "ép"
+này là đường xấu nhất (bỏ qua CDN) — sinh viên thật đi qua CDN nên còn nhanh hơn.
+Con số p50 1,2 s ở kịch bản 150-đồng-thời là do 150 request chia nhau vài instance,
+mỗi instance xếp hàng tuần tự 3 câu × ~50 ms — đúng cái giá đã tính của việc bỏ
+pipelining, và vẫn dưới ngưỡng p95 600 ms cho lưu lượng thật (36 req/s trải đều).
 
 **Chưa đo:** số client đỉnh (dashboard Supabase không tải được biểu đồ; nhưng
 nguyên nhân đã rõ không phải trần này), tải ghi quét/đổi quà (cần project nháp),
