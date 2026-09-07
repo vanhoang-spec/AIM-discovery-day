@@ -371,9 +371,34 @@ Con số p50 1,2 s ở kịch bản 150-đồng-thời là do 150 request chia n
 mỗi instance xếp hàng tuần tự 3 câu × ~50 ms — đúng cái giá đã tính của việc bỏ
 pipelining, và vẫn dưới ngưỡng p95 600 ms cho lưu lượng thật (36 req/s trải đều).
 
-**Chưa đo:** số client đỉnh (dashboard Supabase không tải được biểu đồ; nhưng
-nguyên nhân đã rõ không phải trần này), tải ghi quét/đổi quà (cần project nháp),
-4.000 email test (không gửi).
+**Tải ghi — chạy 07/09 trên project Supabase nháp mới (`npm run test:write-load`,
+`scripts/write-load.mjs`):** mô phỏng CẢ HAI địa điểm ở đỉnh cổng, mỗi thiết bị giữ
+đúng một kết nối như một instance Vercel: 16 lane cổng × 17 người/phút, 80 PG booth
+quét mỗi 15 s, 4 bàn quà mỗi 8 s, 5 phút liên tục, đi qua đúng hàm máy quét thật
+`record_pg_scan` và `claim_gift_tier`.
+
+| Thao tác | Số lượt | Lỗi | p50 | p95 | p99 | max |
+|---|---|---|---|---|---|---|
+| Quét cổng | 1.363 | 0 | 117 ms | **128 ms** | 173 ms | 391 ms |
+| Quét booth | 1.593 (160 lượt quét lại, đúng luật không tính) | 0 | 106 ms | **126 ms** | 142 ms | 198 ms |
+| Đổi quà | 150 (11 lượt "đã nhận") | 0 | 116 ms | **123 ms** | 124 ms | 177 ms |
+
+Tổng 3.106 thao tác = **10,4 lượt ghi/giây**, ledger +2.956 dòng, `v_progress_drift`
+**0 dòng**. Sàn ~110 ms là RTT laptop → Singapore; từ Vercel sin1 sẽ thấp hơn.
+
+**Số client đỉnh chạm pooler (đo được rồi):** 104 client giữ liên tục suốt 5 phút
+→ Supavisor chỉ mở **21 backend** xuống Postgres, 1–4 backend active tại mọi thời
+điểm lấy mẫu. Tức là ở tải ghi thật, database gần như rảnh; thứ duy nhất tiến gần
+trần là *số instance Vercel còn ấm* (mỗi cái 1 client), và `idle_timeout: 20` là
+van xả cho đúng con số đó. Với 104 client, còn cách trần 200 gần một nửa — **chưa
+cần nâng compute Micro → Small**; chỉ nâng nếu ngày 12/09 thấy lỗi `EMAXCONN`.
+
+**T1–T7 chạy lại 07/09 trên schema 11 migration: 7/7 đạt.** T1 1 vòng (10/10 vòng
+đã có từ 04/09, hàm `hold_special_slot` không đổi từ đó); T3 60 s = 8.302 quét +
+8.416 claim song song, 0 lỗi, 0 lệch; T6 đúng 80 badge thưởng trên 200 lượt.
+
+**Chưa đo (có chủ đích):** 4.000 email test — không gửi, vì Resend tính hạn ngạch
+và domain đang cần "ấm" bằng thư thật, không phải thư test (§4.2b).
 
 **Rule cảnh báo Vercel không kích hoạt** trong suốt 8 phút với ~920 request treo —
 vì Vercel chỉ coi là lỗi khi hàm chết ở giây 300, và bộ dò bất thường cần nền lưu
