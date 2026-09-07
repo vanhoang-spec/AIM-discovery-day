@@ -422,7 +422,7 @@ Tiêu chí gốc vẫn giữ nguyên bên dưới cho lần chạy đủ (có t�
 ### 4.5 Điều kiện KHÔNG đạt → không go
 Bất kỳ điều nào chưa đạt thì **hoãn tính năng đó, không hoãn cả sự kiện** — chuyển sang quy trình giấy đã thiết kế sẵn:
 - ~~T1–T7 chưa xanh trên Supabase thật.~~ `✅` 7/7 ngày 04/09 — xem §4.2.
-- Số client đỉnh chạm trần 200 của pooler trong buổi mô phỏng §4.3 (chưa đo).
+- Số client đỉnh chạm trần 200 của pooler trong buổi mô phỏng §4.3 (đo 07/09: 104 client giữ liên tục → 21 backend, còn cách trần gần một nửa — đạt).
 - ~~**SPF/DKIM/DMARC chưa publish**~~ `✅` publish 04/09, đo thật 05/09:
   `dmarc=pass` `compauth=pass reason=100`, Gmail vào Inbox — xem §4.2b.
   Còn lại là uy tín tên miền mới, giảm bằng cách mở đăng ký sớm để gửi đều.
