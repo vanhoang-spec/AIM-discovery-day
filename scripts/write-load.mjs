@@ -263,20 +263,31 @@ async function monitor() {
     } catch { /* role may lack pg_read_all_stats — fine */ }
     const el = Math.round((Date.now() - (until - DURATION_S * 1000)) / 1000);
     console.log(`  ${String(el).padStart(3)}s  cổng=${lat.gate.length} booth=${lat.booth.length}`
-      + ` quà=${lat.gift.length} · client=${nDev + 4} · DB: ${be}`);
+      + ` quà=${lat.gift.length} · client=${live.length + 4} · DB: ${be}`);
   }
 }
 
+const refused = {};
+let live = [];
 try {
-  await Promise.all(conns.map((c) => c`select 1`));   // warm: race the rows, not TCP
-  console.log(`  ${nDev} kết nối đã mở (+4 điều khiển = ${nDev + 4} client trên pooler)\n`);
+  // Warm every socket first. Past the pooler's client cap (200 on Micro)
+  // Supavisor answers with a hard error, not a queue — count those instead
+  // of crashing, so a run that crosses the cap reports it as a finding.
+  const warm = await Promise.allSettled(conns.map((c) => c`select 1`));
+  warm.forEach((w) => {
+    if (w.status === 'rejected') bump(refused, String(w.reason?.message ?? w.reason).replace(/\s+/g, ' ').slice(0, 80));
+  });
+  live = conns.map((_, i) => i).filter((i) => warm[i].status === 'fulfilled');
+  console.log(`  ${live.length}/${nDev} kết nối mở được (+4 điều khiển = ${live.length + 4} client trên pooler)`);
+  for (const [m, n] of Object.entries(refused)) console.log(`  ✗ pooler từ chối ${n} kết nối: ${m}`);
+  console.log('');
   const workers = [];
-  conns.forEach((c, i) => {
-    const tok = f.tokens[i];
+  for (const i of live) {
+    const c = conns[i], tok = f.tokens[i];
     if (i < LANES) workers.push(gateLane(c, tok));
     else if (i < LANES + BOOTH_PGS) workers.push(boothPg(c, tok, i - LANES));
     else workers.push(giftDesk(c, tok, i - LANES - BOOTH_PGS));
-  });
+  }
   const mon = monitor();
   await Promise.all(workers);
   stop = true;
@@ -299,11 +310,12 @@ for (const k of ['gate', 'booth', 'gift']) console.log('  ' + summary(k));
 for (const k of ['gate', 'booth', 'gift']) {
   for (const [m, n] of Object.entries(errors[k])) console.log(`  ✗ ${k}: ${n}× ${m}`);
 }
-console.log(`  ledger +${ledger} dòng · lệch=${drift.length} · client trên pooler=${nDev + 4}`
-  + ` · backend đỉnh=${peakBackends || 'n/a'}`);
+const refusedN = Object.values(refused).reduce((s, n) => s + n, 0);
+console.log(`  ledger +${ledger} dòng · lệch=${drift.length} · client trên pooler=${live.length + 4}`
+  + ` · bị pooler từ chối=${refusedN} · backend đỉnh=${peakBackends || 'n/a'}`);
 
 const p95s = ['gate', 'booth', 'gift'].map((k) => pct([...lat[k]].sort((a, b) => a - b), 0.95));
-const pass = errs === 0 && drift.length === 0 && p95s.every((p) => p < P95_LIMIT_MS);
-console.log(`\n${pass ? '✔ ĐẠT' : '✗ KHÔNG ĐẠT'} — tiêu chí: lỗi=0, lệch=0, p95 < ${P95_LIMIT_MS}ms mọi loại\n`);
+const pass = errs === 0 && refusedN === 0 && drift.length === 0 && p95s.every((p) => p < P95_LIMIT_MS);
+console.log(`\n${pass ? '✔ ĐẠT' : '✗ KHÔNG ĐẠT'} — tiêu chí: lỗi=0, không kết nối nào bị từ chối, lệch=0, p95 < ${P95_LIMIT_MS}ms mọi loại\n`);
 await sql.end({ timeout: 5 });
 process.exit(pass ? 0 : 1);

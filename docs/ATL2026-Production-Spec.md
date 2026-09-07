@@ -397,6 +397,25 @@ cần nâng compute Micro → Small**; chỉ nâng nếu ngày 12/09 thấy lỗ
 đã có từ 04/09, hàm `hold_special_slot` không đổi từ đó); T3 60 s = 8.302 quét +
 8.416 claim song song, 0 lỗi, 0 lệch; T6 đúng 80 badge thưởng trên 200 lượt.
 
+**Lần chạy ×2 — chiều 07/09, mọi tiêu chí nhân đôi** (báo cáo cho BTC bằng ngôn ngữ
+thường: `ATL2026-Bao-cao-Kiem-tra-Tai-Gap-Doi.pdf`; `scripts/concurrency.mjs` nhận `SCALE=2`,
+`scripts/write-load.mjs` nhận nhịp qua env và đếm kết nối bị pooler từ chối):
+
+| Kịch bản (×2) | Kết quả |
+|---|---|
+| Nguội → dồn **600** req qua CDN | 600/600 khi giới hạn 100 song song · p50 68 ms · toàn bộ CDN HIT/STALE, **0 request chạm DB**. 600 luồng cùng lúc từ một laptop: 19 lỗi `UND_ERR_CONNECT_TIMEOUT` — phía máy đo, không phải máy chủ |
+| Nguội → dồn **300** req ép xuống DB | **300/300** · p50 1,55 s · p95 2,4 s · max 7,6 s (×1: 150/150, p50 1,2 s, max 1,4 s) |
+| **4** req/s × 120 s ép xuống DB | 480/480 · p50 240 ms · p95 378 ms · max 702 ms |
+| Tải nền **72** req/s × 8 phút (34.560 req) | 100% mọi đường (1 lỗi phía máy đo) · p50 68–120 ms · p95 394–440 ms · p99 ~2 s chỉ ở phút cuối, khi máy đo đồng thời mở 204 client cho bài thăm dò |
+| T1–T7 `SCALE=2` (1.000 / 400 / 80 luồng / 6 / 4 / 400) | **7/7** · T1 1.000 tranh 200 → đúng 200 · T3 8.583 quét + 8.559 claim / 60 s, 0 lệch · fixture chèn hàng loạt: T1 từ 183 s xuống 7 s |
+| Tải ghi **×2 nhịp** (34/phút/lane, booth 7,5 s, quà 4 s · 104 client) | **6.203 thao tác / 300 s = 20,7 ghi/s** · p95 cổng 234 · booth 209 · quà 201 ms · 0 lỗi · lệch 0 · 20 backend, 1–5 active |
+| Thăm dò trần: **204** client | Đúng 1 kết nối bị từ chối `EMAXCONN … limit: 200`, tức thì, không treo, không xếp hàng · 199 client còn lại 2.491 thao tác, 0 lỗi, 0 lệch · **đuôi trễ dài ra**: p95 640–740 ms, p99 ~2 s (có nhiễu máy đo). Cùng 20,8 ghi/s với dòng trên → thứ làm chậm là số client, không phải số lượt ghi |
+
+Kết luận ×2: mọi tiêu chí đạt với biên gấp đôi; vẫn **chưa cần** nâng Micro → Small. Hai
+chỗ "xấu" duy nhất đều thuộc về máy đo (một laptop không đóng giả được 600 điện thoại
+bắt tay TLS cùng lúc), không thuộc về hệ thống. Trần 200 client là giới hạn cứng cần giữ
+khoảng cách — ×2 thực tế dùng 104.
+
 **Chưa đo (có chủ đích):** 4.000 email test — không gửi, vì Resend tính hạn ngạch
 và domain đang cần "ấm" bằng thư thật, không phải thư test (§4.2b).
 

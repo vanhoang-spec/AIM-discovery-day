@@ -33,6 +33,11 @@ import { randomUUID } from 'node:crypto';
 const WANTED = process.argv.slice(2).map((s) => s.toUpperCase());
 const want = (id) => WANTED.length === 0 || WANTED.includes(id);
 
+// SCALE=2 doubles every client / attempt count. The caps stay fixed — 200
+// slots, 1 gift, 80 bonus badges — because the invariant under test is
+// "N attempts against a cap of M yield exactly M winners", whatever N is.
+const SCALE = Number(process.env.SCALE ?? 1);
+
 const URL_ = process.env.DATABASE_URL;
 if (!URL_) die('DATABASE_URL trống. Điền vào .env.local rồi chạy lại.');
 if (URL_.includes('[')) die('DATABASE_URL còn [YOUR-PASSWORD] — thay bằng mật khẩu thật.');
@@ -107,7 +112,7 @@ async function assertSandbox() {
     );
   }
   const [{ n }] = await sql`select count(*)::int as n from ledger_events`;
-  console.log(`  (sandbox hợp lệ · ledger đang có ${n} dòng)\n`);
+  console.log(`  (sandbox hợp lệ · ledger đang có ${n} dòng${SCALE !== 1 ? ` · SCALE=${SCALE}` : ''})\n`);
 }
 
 // ── fixtures ────────────────────────────────────────────────────────────────
@@ -180,25 +185,32 @@ async function fixture({ students, slots, withDevice = false }) {
   // exactly six Crockford characters, email must be lowercase, phone digits
   // only. And email/phone are unique CAMPAIGN-wide, not per event — so the
   // counter must run across every fixture in the process, never restart at 0.
-  const ids = [];
-  const seqs = [];
-  for (let i = 0; i < students; i++) {
+  // Bulk, not a loop. Three statements per student at ~120 ms each to
+  // Singapore made a 500-student fixture cost three minutes; at SCALE=2 that
+  // would be six. One insert through jsonb_to_recordset, one registrations
+  // insert, and every entrance scan inside a single statement.
+  const rows = Array.from({ length: students }, (_, i) => {
     const seq = personSeq++;
-    const [s] = await sql`
-      insert into students (seq, lookup_code, full_name, name_search_key, email, phone,
-                            school_id, student_code, consent_event_at)
-      values (nextval('student_seq_counter'), ${lookupCode()},
-              ${'SV ' + seq}, ${'sv ' + seq},
-              ${`sv${seq}@sandbox.invalid`}, ${'09' + String(seq).padStart(8, '0')},
-              null, ${tag + '-' + i}, now())
-      returning id, seq`;
-    ids.push(Number(s.id));
-    seqs.push(Number(s.seq));
-    await sql`insert into registrations (student_id, event_id) values (${s.id}, ${eventId})`;
-    // One entrance badge each → passes the special-activity threshold (y = 1).
-    await sql`select record_scan(${randomUUID()}::uuid, ${eventId}::smallint,
-                                 ${s.id}::bigint, ${entrance.id}::integer)`;
-  }
+    return { lookup_code: lookupCode(), full_name: 'SV ' + seq, name_search_key: 'sv ' + seq,
+             email: `sv${seq}@sandbox.invalid`, phone: '09' + String(seq).padStart(8, '0'),
+             student_code: tag + '-' + i };
+  });
+  const inserted = await sql`
+    insert into students (seq, lookup_code, full_name, name_search_key, email, phone,
+                          school_id, student_code, consent_event_at)
+    select nextval('student_seq_counter'), r.lookup_code, r.full_name, r.name_search_key,
+           r.email, r.phone, null, r.student_code, now()
+      from jsonb_to_recordset(${sql.json(rows)})
+        as r(lookup_code text, full_name text, name_search_key text, email text,
+             phone text, student_code text)
+    returning id, seq`;
+  const ids = inserted.map((s) => Number(s.id));
+  const seqs = inserted.map((s) => Number(s.seq));
+  await sql`insert into registrations (student_id, event_id)
+            select id, ${eventId} from students where id = any(${ids}::bigint[])`;
+  // One entrance badge each → passes the special-activity threshold (y = 1).
+  await sql`select record_scan(gen_random_uuid(), ${eventId}::smallint, s.id, ${entrance.id}::integer)
+              from unnest(${ids}::bigint[]) as s(id)`;
 
   let token = null;
   if (withDevice) {
@@ -230,10 +242,9 @@ async function fixture({ students, slots, withDevice = false }) {
 async function T1() {
   // Spec §4.2 asks for 10/10 runs, not one lucky pass: a lock bug that loses
   // a race one time in twenty is exactly the kind that survives a single
-  // green run and then oversells the Meet & Greet on the day. Building the
-  // 500 students costs ~2.5 minutes, so build once and reset the slots
-  // between rounds rather than paying it ten times.
-  const SLOTS = 200, CLIENTS = 500;
+  // green run and then oversells the Meet & Greet on the day. Build the
+  // students once and reset the slots between rounds.
+  const SLOTS = 200, CLIENTS = 500 * SCALE;
   const RUNS = Number(process.env.T1_RUNS ?? 1);
   const f = await fixture({ students: CLIENTS, slots: SLOTS });
   const rounds = [];
@@ -272,7 +283,7 @@ async function T1() {
 
 // ── T2 ──────────────────────────────────────────────────────────────────────
 async function T2() {
-  const CLIENTS = 200;
+  const CLIENTS = 200 * SCALE;
   const f = await fixture({ students: 1 });
   const [tier] = await sql`
     insert into gift_tiers (event_id, tier, required_badges, gift_name, stock_total)
@@ -296,7 +307,8 @@ async function T4() {
   const f = await fixture({ students: 1 });
   const uid = randomUUID();
   const seen = [];
-  for (let i = 0; i < 3; i++) {
+  const REPLAYS = 3 * SCALE;
+  for (let i = 0; i < REPLAYS; i++) {
     const r = await sql`select * from record_scan(${uid}::uuid, ${f.eventId}::smallint,
                                                   ${f.ids[0]}::bigint, ${f.booth}::integer)`;
     seen.push(r[0]?.status);
@@ -306,13 +318,14 @@ async function T4() {
                              where student_id = ${f.ids[0]} and event_id = ${f.eventId}`;
   record('T4', n === 1 && Number(b) === 2
     && seen[0] === 'counted' && seen.slice(1).every((s) => s === 'replay'),
-    `phát lại 3 lần cùng scan_uid: trạng thái=${seen.join(',')} · dòng ledger=${n} · badge=${b} (cổng+booth)`);
+    `phát lại ${REPLAYS} lần cùng scan_uid: trạng thái=${seen.join(',')} · dòng ledger=${n} · badge=${b} (cổng+booth)`);
 }
 
 // ── T5 ──────────────────────────────────────────────────────────────────────
 async function T5() {
   const f = await fixture({ students: 1 });
-  const out = await stampede(2, (c) =>
+  const PGS = 2 * SCALE;
+  const out = await stampede(PGS, (c) =>
     c`select * from record_scan(${randomUUID()}::uuid, ${f.eventId}::smallint,
                                 ${f.ids[0]}::bigint, ${f.booth}::integer)`);
   const st = out.map((r) => (r.ok ? r.rows[0]?.status : 'ERR:' + r.err.slice(0, 40)));
@@ -324,13 +337,13 @@ async function T5() {
   // PGs to ignore red, and then a real error slips through.
   record('T5', n === 1
     && st.filter((s) => s === 'counted').length === 1
-    && st.filter((s) => s === 'repeat_not_counted').length === 1,
-    `2 PG quét cùng lúc: ${st.join(' / ')} · badge trong DB=${n}`);
+    && st.filter((s) => s === 'repeat_not_counted').length === PGS - 1,
+    `${PGS} PG quét cùng lúc: ${st.join(' / ')} · badge trong DB=${n}`);
 }
 
 // ── T6 / T7 ─────────────────────────────────────────────────────────────────
 async function T6() {
-  const SCANS = 200, CAP = 80;
+  const SCANS = 200 * SCALE, CAP = 80;
   const f = await fixture({ students: SCANS, withDevice: true });
   const [g] = await sql`select * from activate_golden_hour(${f.eventId}::smallint,
                           ${f.zoneId}::integer, 'T6', 40, ${CAP})`;
@@ -361,12 +374,13 @@ async function T7() {
 // ── T3 ──────────────────────────────────────────────────────────────────────
 async function T3() {
   const SECONDS = Number(process.env.T3_SECONDS ?? 60);
-  const f = await fixture({ students: 40 });
+  const THREADS = 40 * SCALE;
+  const f = await fixture({ students: THREADS });
   const [tier] = await sql`
     insert into gift_tiers (event_id, tier, required_badges, gift_name, stock_total)
     values (${f.eventId}, 1, 1, 'Quà', 1000) returning id`;
   const until = Date.now() + SECONDS * 1000;
-  const conns = Array.from({ length: 40 }, () =>
+  const conns = Array.from({ length: THREADS }, () =>
     postgres(URL_, { max: 1, prepare: false, onnotice: () => {} }));
   let scans = 0, claims = 0, errs = 0;
   try {
@@ -392,7 +406,7 @@ async function T3() {
   }
   const drift = await sql`select * from v_progress_drift where event_id = ${f.eventId}`;
   record('T3', drift.length === 0,
-    `${SECONDS}s · ${scans} quét + ${claims} claim song song, lỗi=${errs} · dòng lệch=${drift.length}`);
+    `${SECONDS}s · ${THREADS} luồng · ${scans} quét + ${claims} claim song song, lỗi=${errs} · dòng lệch=${drift.length}`);
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────
