@@ -16,7 +16,8 @@
     "test:qr": "node --test packages/qr-token/test/*.test.js",
     "test:db": "node --test supabase/test/*.test.js",
     "test:concurrency": "node --env-file=.env.local scripts/concurrency.mjs",
-    "test:write-load": "node --env-file=.env.local scripts/write-load.mjs"
+    "test:write-load": "node --env-file=.env.local scripts/write-load.mjs",
+    "test:register-load": "node --env-file=.env.local scripts/register-load.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.7"

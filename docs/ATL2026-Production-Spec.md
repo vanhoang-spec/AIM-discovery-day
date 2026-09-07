@@ -416,6 +416,22 @@ chỗ "xấu" duy nhất đều thuộc về máy đo (một laptop không đón
 bắt tay TLS cùng lúc), không thuộc về hệ thống. Trần 200 client là giới hạn cứng cần giữ
 khoảng cách — ×2 thực tế dùng 104.
 
+**Test #1 — đăng ký dồn (chiều 07/09, project nháp, `npm run test:register-load`,
+`scripts/register-load.mjs`):** đường ghi đầu tiên chịu tải thật — lúc AIM đăng link và tại bàn
+walk-in. `/api/register` chỉ chạy đúng một câu `register_student` (validate + vẽ QR nằm trên
+Vercel), nên test ở mức hàm bao trọn phần DB của một lượt đăng ký thật.
+
+| Pha | Kết quả |
+|---|---|
+| A · 500 người đăng ký cùng một giây | 500 created · 0 lỗi · 500 mã riêng biệt · 500 email xếp hàng · **cả đợt xong 2,1 s** (p50 531 ms vì 500 lượt chia 150 kết nối, mỗi kết nối xếp hàng 3–4 lượt) |
+| B · 20 đăng ký/s × 300 s | 5.980 created (19,9/s thật) · 0 lỗi · p50 104 · **p95 124 ms** · p99 180 · max 337 |
+| C · 200 lượt cùng một người cùng giây (double-tap, bão retry) | 1 created + 199 already_registered · đúng **1 SV, 1 đăng ký, 1 email** |
+| C2 · người cũ đăng ký sự kiện thứ hai, ×100 cùng lúc | 1 linked + 99 already_registered · 1 SV, 2 đăng ký |
+| D · cổng online đóng | online ×100 → 100 `closed`, không ghi gì · walk-in ×100 → 100 created (cổng đóng không giết bàn walk-in) |
+
+Kết luận: mở đăng ký không cần ghép lịch hay giới hạn tốc độ; vòng retry sinh mã / trùng email
+của `register_student` đúng dưới tranh chấp thật, không rò một dòng trùng.
+
 **Chưa đo (có chủ đích):** 4.000 email test — không gửi, vì Resend tính hạn ngạch
 và domain đang cần "ấm" bằng thư thật, không phải thư test (§4.2b).
 
