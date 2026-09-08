@@ -17,7 +17,8 @@
     "test:db": "node --test supabase/test/*.test.js",
     "test:concurrency": "node --env-file=.env.local scripts/concurrency.mjs",
     "test:write-load": "node --env-file=.env.local scripts/write-load.mjs",
-    "test:register-load": "node --env-file=.env.local scripts/register-load.mjs"
+    "test:register-load": "node --env-file=.env.local scripts/register-load.mjs",
+    "test:failover": "node --env-file=.env.local scripts/failover-drill.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.7"

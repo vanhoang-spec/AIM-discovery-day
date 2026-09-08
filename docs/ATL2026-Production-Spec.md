@@ -432,6 +432,27 @@ Vercel), nên test ở mức hàm bao trọn phần DB của một lượt đăn
 Kết luận: mở đăng ký không cần ghép lịch hay giới hạn tốc độ; vòng retry sinh mã / trùng email
 của `register_student` đúng dưới tranh chấp thật, không rò một dòng trùng.
 
+**Test #3 — đứt rồi nối (08/09, project nháp, `npm run test:failover`,
+`scripts/failover-drill.mjs`):** 8 "instance" ghép đúng như `createPostgres` của @atl/db
+(`POSTGRES_OPTIONS` + `serializeQueries` + `QUERY_TIMEOUT_MS`), 16 lượt `record_pg_scan`/s,
+sự cố gây ở giây 20. Lần đầu bản vá 06/09 gặp một cú treo THẬT chứ không phải fake trong test.
+
+| Kịch bản | Kết quả |
+|---|---|
+| A · máy chủ cắt kết nối: `pg_terminate_backend` toàn bộ backend của role app giữa lúc đang ghi (Supabase restart / failover / pooler reset) | Giết 5 backend → **0 lỗi phía client**, thao tác thành công đầu tiên sau 0,1 s, 8/8 instance sống, lệch 0. Supavisor transaction mode gán backend mới trong suốt — **restart DB là vô hình với app** |
+| B · mạng im lặng 30 s: proxy TCP cục bộ ngừng chuyển byte, socket vẫn mở (đúng hình dạng cú treo 06/09) | 21 thao tác trong lúc băng chết **đúng 10,0 s**, không cái nào vượt trần · nối lại **0,1 s** sau khi byte chạy · 1.104 thao tác sau đó 0 lỗi · 8/8 instance sống · lệch 0. Ledger +1.440 vs client nhận 1.431: **9 lượt máy chủ ghi xong nhưng client đã bỏ cuộc** — chính là lý do mọi lượt ghi mang `scan_uid` do client sinh: gửi lại thành `replay`, không nhân đôi (T4) |
+
+Kết luận: không còn đường nào để một request treo tới 300 s; sau sự cố hệ thống tự lành
+trong dưới một giây mà không cần ai khởi động lại gì.
+
+**Phát hiện kèm theo — kết nối DB đang đi plaintext.** postgres.js mặc định `ssl: false`
+khi chuỗi kết nối không có `sslmode` (`node_modules/postgres/src/index.js:450`). Chuỗi
+trong `.env.local` không có; nếu chuỗi trên Vercel cũng vậy thì mật khẩu DB và dữ liệu SV
+đi Vercel → Supabase **không mã hoá**. Đã thử trên pooler: `ssl: require` bắt tay 710 ms,
+`verify-full` thất bại (chứng chỉ Supabase tự ký, muốn xác thực đầy đủ phải tải CA của họ
+qua `sslrootcert`). Đề xuất: thêm `ssl: require` vào `POSTGRES_OPTIONS` — không phụ thuộc
+ai gõ chuỗi kết nối thế nào — cập nhật guard.test, deploy. **Chờ quyết định.**
+
 **Chưa đo (có chủ đích):** 4.000 email test — không gửi, vì Resend tính hạn ngạch
 và domain đang cần "ấm" bằng thư thật, không phải thư test (§4.2b).
 
