@@ -123,9 +123,10 @@ export async function PATCH(request) {
     await db.query(
       `insert into audit_log (event_id, actor_type, actor_id, action, target_type, target_id,
                               before_state, after_state)
-       values ($1, 'super_admin', $2, 'set_threshold_y', 'event', $1::text,
-               jsonb_build_object('y', $3), jsonb_build_object('y', $4))`,
-      [eventId, actor, oldY, newY]);
+       values ($1, 'super_admin', $2, 'set_threshold_y', 'event', $5,
+               jsonb_build_object('y', $3::int), jsonb_build_object('y', $4::int))`,
+      // $5: không dùng lại $1 dưới hai kiểu (42P08 — xem event/route.js).
+      [eventId, actor, oldY, newY, String(eventId)]);
     return Response.json({ ok: true, y: newY });
   }
 
@@ -149,9 +150,10 @@ export async function PATCH(request) {
     await db.query(
       `insert into audit_log (event_id, actor_type, actor_id, action, target_type, target_id,
                               before_state, after_state)
-       values ($1, 'super_admin', $2, 'set_event_field', 'event', $1::text, $3::jsonb, $4::jsonb)`,
+       values ($1, 'super_admin', $2, 'set_event_field', 'event', $5, $3::jsonb, $4::jsonb)`,
+      // $5: không dùng lại $1 dưới hai kiểu (42P08 — xem event/route.js).
       [eventId, actor, JSON.stringify(before),
-       JSON.stringify({ [field]: body.value })]);
+       JSON.stringify({ [field]: body.value }), String(eventId)]);
     return Response.json({ ok: true });
   }
 

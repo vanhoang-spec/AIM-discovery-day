@@ -54,8 +54,11 @@ export async function PATCH(request) {
   await db.query(
     `insert into audit_log (event_id, actor_type, actor_id, action, target_type, target_id,
                             before_state, after_state)
-     values ($1, 'super_admin', $2, 'set_event_ops', 'event', $1::text, $3::jsonb, $4::jsonb)`,
-    [eventId, actor, JSON.stringify(before), JSON.stringify(patch)],
+     values ($1, 'super_admin', $2, 'set_event_ops', 'event', $5, $3::jsonb, $4::jsonb)`,
+    // $5 riêng cho target_id: dùng lại $1 với hai kiểu (smallint + ::text) làm
+    // Postgres từ chối suy kiểu — 42P08, chính là cú HTTP 500 ngày 08/09 khi
+    // AIM bấm "Mở đăng ký" lần đầu tiên.
+    [eventId, actor, JSON.stringify(before), JSON.stringify(patch), String(eventId)],
   );
   return Response.json({ ok: true });
 }
