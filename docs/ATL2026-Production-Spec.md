@@ -498,6 +498,19 @@ Bất kỳ điều nào chưa đạt thì **hoãn tính năng đó, không hoãn
   `/toi` render offline (AC4, AC7, AC14b). Thứ thật sự phụ thuộc email là
   **các thư nhắc D-3 / D-1 / sáng ngày sự kiện**, vốn kéo tỉ lệ đi thật.
 
+**Nhập danh sách đăng ký thật — xong tối 08/09.** File AIM chốt 20:00 ngày 07/09
+(668 dòng, 4 sheet: vé DDay HCM/HN 211 + Google Form FTU HCM/HN 457) nhập vào production
+qua chính `POST /api/register` nguồn `online` (cổng mở trước bằng tab Vận hành), Claude
+chạy từ phiên làm việc, không cầm credential nào. Kết quả: **658 dòng nhập — 588 created ·
+68 already_registered (đăng ký trùng hai kênh, tự gộp, không thư đôi) · 2 linked (một người
+hai điểm) · 0 lỗi**; 10 dòng loại có hồ sơ lý do (4 chờ AIM bổ sung thông tin). Pilot 10 em
++ xác minh outbox/Resend/hồ sơ trước khi đại trà 648 dòng @2 req/s trong 7,9 phút. Quy tắc
+chuẩn hoá (khôi phục số 0 Excel nuốt, tách ô hai email, MSSV làm student_code, mã vé TKT làm
+student_code cho nguồn vé, chặn gộp nhầm hai người chung SĐT) + toàn bộ script nằm ở
+scratchpad phiên 08/09; căn cứ đồng ý: form gốc AIM có mục đồng ý (AIM xác nhận), consent
+ghi `v1-2026-08`. Phát hiện kèm: nút "Mở đăng ký" chưa từng chạy được (42P08 — sửa cùng
+ngày, xem commit 6371f75).
+
 **Dọn dữ liệu thử nghiệm — xong 08/09.** 11 bản ghi tạo trong lúc kiểm thử email
 (`TEST-EMAIL-01`, `TEST-SEED-01…10`) đã xoá khỏi database production. Trạng thái nền
 trước khi nhập danh sách thật: **students 0 · registrations 0 · notification_outbox 0**.
