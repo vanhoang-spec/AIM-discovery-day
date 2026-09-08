@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { searchRoster } from '@atl/vn-text';
 import { getQueue, getRoster, getActiveCheckpoint, getSession } from '@/lib/session';
 import { feedback } from '@/lib/scanner';
+import { canAward } from '@/lib/boot-state';
 
 const KIND_LABEL = {
   lookup_code: 'mã 6 ký tự',
@@ -32,14 +33,20 @@ export default function LookupPage() {
   const router = useRouter();
   const [roster, setRoster] = useState([]);
   const [checkpoint, setCheckpoint] = useState(null);
+  const [session, setSession] = useState(null);
   const [query, setQuery] = useState('');
   const [done, setDone] = useState(null);
 
+  // Read first, publish once — same discipline as the scanner's boot after the
+  // 08/09 crash (lib/boot-state.js).
   useEffect(() => {
     (async () => {
-      if (!(await getSession())) { router.replace('/'); return; }
-      setRoster(await getRoster());
-      setCheckpoint(await getActiveCheckpoint());
+      const s = await getSession();
+      if (!s) { router.replace('/'); return; }
+      const [r, cp] = [await getRoster(), await getActiveCheckpoint()];
+      setRoster(r);
+      setCheckpoint(cp ?? null);
+      setSession(s);
     })();
   }, [router]);
 
@@ -52,6 +59,10 @@ export default function LookupPage() {
   );
 
   async function award(student) {
+    // A PG can type a name and tap a result before getActiveCheckpoint()
+    // resolves; the queue item is built from checkpoint.id. Same family of
+    // bug as the 08/09 crash, quieter symptom: a badge that goes nowhere.
+    if (!canAward({ session, checkpoint })) return;
     const q = getQueue();
     const { duplicate, item } = await q.enqueue({
       student_seq: student.seq,

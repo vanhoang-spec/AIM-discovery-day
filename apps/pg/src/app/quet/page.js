@@ -21,6 +21,7 @@ import {
   getGoldenStatus,
 } from '@/lib/session';
 import { startScanner, feedback, holdWakeLock, IDLE_PAUSE_MS } from '@/lib/scanner';
+import { screenFor } from '@/lib/boot-state';
 
 const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
 
@@ -42,16 +43,24 @@ export default function ScanPage() {
   const [picking, setPicking] = useState(false);
 
   // ---- boot ----
+  //
+  // Read EVERYTHING first, then set state once. React renders at every await,
+  // so setting `session` here and `checkpoint` three awaits later published a
+  // half-loaded state to the JSX — which is exactly how production crashed on
+  // 08/09 (see lib/boot-state.js). The refs are not state and can be filled as
+  // they arrive; the two useState values are set together at the end, in one
+  // synchronous block React batches into a single render.
   useEffect(() => {
     (async () => {
       const s = await getSession();
       if (!s) { router.replace('/'); return; }
-      setSession(s);
       rosterRef.current = await getRoster();
       keyRef.current = await importKey(process.env.NEXT_PUBLIC_ATL_HMAC_KEY || DEV_KEY);
       const cp = await getActiveCheckpoint();
-      if (cp) setCheckpoint(cp); else setPicking(true);
       setOnline(navigator.onLine);
+      setCheckpoint(cp ?? null);
+      setPicking(!cp);
+      setSession(s);
     })();
   }, [router]);
 
@@ -206,14 +215,18 @@ export default function ScanPage() {
     };
   }, [checkpoint, picking, startCamera]);
 
-  if (!session) return null;
+  // One rule, one place, tested in test/boot-state.test.js. Ordering the boot
+  // effect correctly is the fix; this is the guard that keeps it fixed when
+  // someone later adds another await above.
+  const screen = screenFor({ session, checkpoint, picking });
+  if (screen === 'loading') return null;
 
   const syncClass = !online ? 'offline' : stats.unsent > 0 ? 'sending' : 'ok';
   const syncText = !online
     ? `Mất mạng · ${stats.unsent} chờ gửi`
     : stats.unsent > 0 ? `Đang gửi · ${stats.unsent}` : 'Đã đồng bộ';
 
-  if (picking) {
+  if (screen === 'picking') {
     return (
       <main className="screen">
         <div className={`syncbar ${syncClass}`}><span>{syncText}</span></div>
