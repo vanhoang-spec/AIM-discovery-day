@@ -456,6 +456,14 @@ bằng chứng trên dây bằng proxy nghe byte đầu tiên — trước: `Sta
 chữ "user" trong hex), sau: `SSLRequest` rồi TLS ClientHello `16 03 01…`. Bước xa hơn (chưa
 làm): `sslrootcert` bằng CA Supabase để chống MITM chủ động.
 
+Đo sau deploy (production, 08/09 16:39): 150 dồn xuống DB **150/150**, p50 1,58 s (trước TLS
+1,21 s — mỗi kết nối nguội trả thêm một lần bắt tay), max 3,3 s; 2 req/s × 120 s chạy một mình
+**240/240, p50 175 ms, p95 214 ms**, 0 request quá 1 s, 59 instance; lần đầu một instance
+được gọi p95 402 ms, từ lần hai 170–190 ms. Giá TLS đo từ laptop: **+241 ms cho mỗi kết nối
+mới** (583 vs 342 ms), vô hình ở trạng thái ổn định nhờ `max: 1` giữ kết nối. Lần đo 2 req/s
+ngay sau đợt 150 dồn cho p95 1,68 s — là dư âm burst (6 request xếp chồng), không phải TLS;
+ghi lại để khỏi đo nhầm lần sau: **đo nhỏ giọt phải cách đợt dồn ≥ 3 phút.**
+
 **Chưa đo (có chủ đích):** 4.000 email test — không gửi, vì Resend tính hạn ngạch
 và domain đang cần "ấm" bằng thư thật, không phải thư test (§4.2b).
 
