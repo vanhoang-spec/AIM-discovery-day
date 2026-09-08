@@ -80,12 +80,24 @@ describe('getDb', () => {
 describe('POSTGRES_OPTIONS', () => {
   // Each of these was added after a real incident. A refactor that drops one
   // will pass every other test and fail on event day, so pin them here.
-  test('the four production settings are exactly what they must be', async () => {
+  test('the five production settings are exactly what they must be', async () => {
     const { POSTGRES_OPTIONS: o } = await import('../src/index.js');
     assert.equal(o.max, 1, 'max:1 — 50 instances × pool of 10 is how max_connections dies');
     assert.equal(o.prepare, false, 'prepare:false — named statements break behind Supavisor');
     assert.equal(o.idle_timeout, 20, 'idle_timeout — warm-but-idle instances must release their slot');
     assert.equal(o.connect_timeout, 10, 'connect_timeout — 06/09: a stalled connect ate the whole function budget');
+    // 08/09: postgres.js is plaintext unless told otherwise, and the dashboard
+    // connection string does not tell it. The option must not depend on the URL.
+    assert.equal(o.ssl, 'require', 'ssl:require — password and student data must not cross the internet in clear');
+  });
+
+  test('TLS does not depend on the connection string carrying sslmode', async () => {
+    const { POSTGRES_OPTIONS: o } = await import('../src/index.js');
+    // Whatever someone pastes, the code decides. A URL with no sslmode is the
+    // exact string the Supabase dashboard hands out.
+    const url = 'postgresql://u:p@host:6543/postgres';
+    assert.ok(!url.includes('sslmode'));
+    assert.equal(o.ssl, 'require');
   });
 
   test('is frozen — nothing can quietly mutate it at runtime', async () => {

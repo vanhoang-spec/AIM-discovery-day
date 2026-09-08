@@ -85,15 +85,28 @@ function assertConnectionString(url) {
 }
 
 /**
- * The four numbers that decide whether the app survives 08:00 on 12/09.
- * Exported so a test can pin them — each one was added after a real
- * incident, and each is the kind of thing a well-meaning cleanup deletes.
+ * The five settings that decide whether the app survives 08:00 on 12/09 —
+ * and whether what it sends is readable on the wire. Exported so a test can
+ * pin them: each was added after a real incident or a real finding, and each
+ * is the kind of thing a well-meaning cleanup deletes.
  */
 export const POSTGRES_OPTIONS = Object.freeze({
   max: 1,              // one connection per serverless instance (§ header)
   prepare: false,      // named statements break behind a transaction pooler
   idle_timeout: 20,    // return the slot to the 200-client cap when idle
   connect_timeout: 10, // a stalled handshake fails fast instead of hanging
+  // TLS, regardless of what the connection string says. postgres.js defaults
+  // to `ssl: false` when the URL carries no `sslmode` (src/index.js:450), so
+  // a string pasted straight from the Supabase dashboard sends the database
+  // password and every student's data across the internet in plaintext.
+  // Found 08/09 while building the failover drill's proxy. 'require' means
+  // encrypted but certificate NOT verified (postgres.js sets
+  // rejectUnauthorized:false for it): it stops eavesdropping, not a
+  // forged-certificate MITM. Full verification needs Supabase's own CA via
+  // sslrootcert — the pooler's chain is self-signed, so 'verify-full'
+  // against system roots fails. Measured handshake cost: ~0.7 s once per
+  // connection from Việt Nam, less from Vercel sin1; amortised by max:1.
+  ssl: 'require',
 });
 
 function createPostgres(url) {

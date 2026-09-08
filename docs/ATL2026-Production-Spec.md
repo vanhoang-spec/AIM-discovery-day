@@ -451,7 +451,10 @@ trong `.env.local` không có; nếu chuỗi trên Vercel cũng vậy thì mật
 đi Vercel → Supabase **không mã hoá**. Đã thử trên pooler: `ssl: require` bắt tay 710 ms,
 `verify-full` thất bại (chứng chỉ Supabase tự ký, muốn xác thực đầy đủ phải tải CA của họ
 qua `sslrootcert`). Đề xuất: thêm `ssl: require` vào `POSTGRES_OPTIONS` — không phụ thuộc
-ai gõ chuỗi kết nối thế nào — cập nhật guard.test, deploy. **Chờ quyết định.**
+ai gõ chuỗi kết nối thế nào — cập nhật guard.test, deploy. **Đã làm 08/09 (@atl/db 1.0.5):**
+bằng chứng trên dây bằng proxy nghe byte đầu tiên — trước: `StartupMessage` trần (thấy cả
+chữ "user" trong hex), sau: `SSLRequest` rồi TLS ClientHello `16 03 01…`. Bước xa hơn (chưa
+làm): `sslrootcert` bằng CA Supabase để chống MITM chủ động.
 
 **Chưa đo (có chủ đích):** 4.000 email test — không gửi, vì Resend tính hạn ngạch
 và domain đang cần "ấm" bằng thư thật, không phải thư test (§4.2b).
