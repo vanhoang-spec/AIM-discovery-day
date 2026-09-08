@@ -498,6 +498,24 @@ Bất kỳ điều nào chưa đạt thì **hoãn tính năng đó, không hoãn
   `/toi` render offline (AC4, AC7, AC14b). Thứ thật sự phụ thuộc email là
   **các thư nhắc D-3 / D-1 / sáng ngày sự kiện**, vốn kéo tỉ lệ đi thật.
 
+**Dọn dữ liệu thử nghiệm — xong 08/09.** 11 bản ghi tạo trong lúc kiểm thử email
+(`TEST-EMAIL-01`, `TEST-SEED-01…10`) đã xoá khỏi database production. Trạng thái nền
+trước khi nhập danh sách thật: **students 0 · registrations 0 · notification_outbox 0**.
+
+Việc này **bắt buộc**, không phải dọn cho gọn: 9 trong 11 bản ghi chiếm email thật của
+người thật (nhóm nhận thư thử, gồm cả địa chỉ của AIM). Email và điện thoại là unique
+campaign-wide, nên nếu còn, những người đó đăng ký thật sẽ bị gộp vào bản ghi thử và nhận
+QR mang tên "ATL2026 — email thử nghiệm".
+
+Cách làm, giữ cho các lần sau: không có chức năng xoá sinh viên trên admin console (chỉ
+`void`/`award` badge), nên chạy SQL trong Supabase SQL Editor — Claude soạn câu lệnh, người
+chạy. Chốt an toàn kép: `where id in (…) and student_code like TEST-%`. **Kiểm trước khi
+xoá:** `ledger_events.student_id` là `on delete set null` nhưng bảng có trigger chặn mọi
+UPDATE ([0002:83-86](supabase/migrations/0002_ledger.sql:83)) — bản ghi nào đã từng bị quét
+thì lệnh xoá **thất bại nguyên khối** thay vì hỏng ngầm. Lần này cả 11 bản đều 0 dòng ledger
+nên xoá sạch; nếu gặp bản có ledger, phương án là đổi tên thành "[BẢN GHI THỬ — BỎ QUA]" và
+xoá email/phone, **không** tắt trigger.
+
 *(v1.0 liệt "chưa có SMS brandname" vào đây — đã gỡ, xem §1.3.)*
 
 ---
