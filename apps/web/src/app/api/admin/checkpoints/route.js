@@ -71,7 +71,12 @@ export async function POST(request) {
   }
 
   const db = await getDb();
-  const r = await db.query(
+  // Lỗi DB phải trả CHỮ, không phải 500 câm: chiều 09/09 một POST hỏng trên
+  // production mà thân phản hồi rỗng đã buộc phải deploy thêm một lần chỉ để
+  // nhìn thấy thông điệp lỗi.
+  let r;
+  try {
+  r = await db.query(
     `insert into checkpoints (event_id, zone_id, kind, name, description, location_hint,
                               starts_at, ends_at, capacity, counts_toward_badges,
                               badge_award_mode, is_active, display_order, badge_weight)
@@ -84,6 +89,10 @@ export async function POST(request) {
      patch.capacity ?? null, patch.counts_toward_badges, patch.badge_award_mode,
      patch.is_active, patch.display_order, patch.badge_weight ?? null],
   );
+  } catch (err) {
+    console.error('create_checkpoint failed:', err);
+    return Response.json({ error: `DB: ${err.message}` }, { status: 500 });
+  }
   await db.query(
     `insert into audit_log (event_id, actor_type, actor_id, action, target_type, target_id, after_state)
      values ($1, 'super_admin', $2, 'create_checkpoint', 'checkpoint', $3::text, $4::jsonb)`,
