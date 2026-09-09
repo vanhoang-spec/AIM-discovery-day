@@ -511,6 +511,20 @@ scratchpad phiên 08/09; căn cứ đồng ý: form gốc AIM có mục đồng 
 ghi `v1-2026-08`. Phát hiện kèm: nút "Mở đăng ký" chưa từng chạy được (42P08 — sửa cùng
 ngày, xem commit 6371f75).
 
+**Đổi luật badge theo kế hoạch cuối của AIM — 0012, deploy 09/09.** File "Planning by
+AIM" (bản cuối 09/09) + hai đính chính miệng: booth 1 badge, Brief Day/Learning zone **4**,
+Inspiration **3** ở cả hai điểm; điều kiện vào HĐ đặc biệt = **tối thiểu 10 badge trên thang
+TỔNG** (không còn xét thang lõi cổng+booth — với cấu hình AIM thang lõi tối đa 6–7, không ai
+chạm nổi 10). Ngưỡng đổi quà: HCM ≥7, HN ≥6. Schema 0012: `checkpoints.badge_weight` 1–9;
+`record_scan` cộng theo trọng số (attendance vẫn 1 dòng/mốc); rebuild/drift sum(weight);
+`hold_special_slot` + control panel xét `badge_count`; chuông ngưỡng viết lại thành
+"y vượt tổng khả dụng". Luật >70% (Ver02 §025) chính thức rời runtime; `core_badge_count`
+vẫn được nuôi để đối soát. Kiểm: 318/318 PGlite (8 bài 0012 mới, 5 bài two-ladders đảo chiều
+có chủ đích), T1–T7 7/7 + tải ghi 60 s (0 lỗi, 0 lệch) trên sandbox ĐÃ áp 0012, migration áp
+production lúc ~15h ngày 09/09 (3 kiểm tra schema = 1), deploy web+pg `e6c0411` thành công,
+smoke 4 đường xanh. Thứ tự chuẩn đã theo: schema trước (tương thích code cũ nhờ default 1),
+code sau.
+
 **Dọn dữ liệu thử nghiệm — xong 08/09.** 11 bản ghi tạo trong lúc kiểm thử email
 (`TEST-EMAIL-01`, `TEST-SEED-01…10`) đã xoá khỏi database production. Trạng thái nền
 trước khi nhập danh sách thật: **students 0 · registrations 0 · notification_outbox 0**.
