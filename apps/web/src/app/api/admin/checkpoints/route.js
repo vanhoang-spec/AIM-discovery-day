@@ -38,6 +38,12 @@ function readPatch(body) {
   }
   if (body.display_order !== undefined) out.display_order = Number(body.display_order) || 0;
   if (body.counts_toward_badges !== undefined) out.counts_toward_badges = !!body.counts_toward_badges;
+  if (body.badge_weight !== undefined && body.badge_weight !== '') {
+    out.badge_weight = Number(body.badge_weight);
+    if (!Number.isInteger(out.badge_weight) || out.badge_weight < 1 || out.badge_weight > 9) {
+      return { error: 'Trọng số badge phải là số nguyên 1–9' };
+    }
+  }
   if (body.is_active !== undefined) out.is_active = !!body.is_active;
   if (body.badge_award_mode !== undefined) {
     if (!AWARD_MODES.includes(body.badge_award_mode)) return { error: 'badge_award_mode sai' };
@@ -68,15 +74,15 @@ export async function POST(request) {
   const r = await db.query(
     `insert into checkpoints (event_id, zone_id, kind, name, description, location_hint,
                               starts_at, ends_at, capacity, counts_toward_badges,
-                              badge_award_mode, is_active, display_order)
+                              badge_award_mode, is_active, display_order, badge_weight)
      values ($1, $2, $3::checkpoint_kind, $4, $5, $6, $7, $8, $9,
              coalesce($10, true), coalesce($11, 'pg_scan')::badge_award_mode,
-             coalesce($12, true), coalesce($13, 0))
+             coalesce($12, true), coalesce($13, 0), coalesce($14, 1))
      returning id`,
     [eventId, patch.zone_id ?? null, patch.kind, patch.name, patch.description ?? null,
      patch.location_hint ?? null, patch.starts_at ?? null, patch.ends_at ?? null,
      patch.capacity ?? null, patch.counts_toward_badges, patch.badge_award_mode,
-     patch.is_active, patch.display_order],
+     patch.is_active, patch.display_order, patch.badge_weight ?? null],
   );
   await db.query(
     `insert into audit_log (event_id, actor_type, actor_id, action, target_type, target_id, after_state)
@@ -105,7 +111,7 @@ export async function PATCH(request) {
   const before = (await db.query(
     `select name, description, location_hint, starts_at, ends_at, zone_id, capacity,
             counts_toward_badges, badge_award_mode::text as badge_award_mode,
-            is_active, display_order, kind::text as kind
+            is_active, display_order, kind::text as kind, badge_weight
        from checkpoints where id = $1 and event_id = $2`, [id, eventId])).rows[0];
   if (!before) return Response.json({ error: 'not_found' }, { status: 404 });
 
@@ -122,7 +128,9 @@ export async function PATCH(request) {
   // definition. Rebuild both ladders so drift keeps meaning "bug".
   const countingChanged =
     ('counts_toward_badges' in patch && patch.counts_toward_badges !== before.counts_toward_badges)
-    || ('kind' in patch && patch.kind !== before.kind);
+    || ('kind' in patch && patch.kind !== before.kind)
+    // [0012] Đổi trọng số cũng đổi số badge mọi SV đã quét mốc này đang giữ.
+    || ('badge_weight' in patch && patch.badge_weight !== before.badge_weight);
   let rebuilt = 0;
   if (countingChanged) {
     rebuilt = (await db.query(

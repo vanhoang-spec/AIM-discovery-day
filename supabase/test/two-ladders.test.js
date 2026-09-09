@@ -146,24 +146,27 @@ describe('what feeds which ladder', () => {
   });
 });
 
-describe('special eligibility reads the special ladder', () => {
-  test('rich on sessions, poor on booths: NOT eligible', async () => {
+describe('special eligibility reads the TOTAL ladder (0012 — AIM 09/09)', () => {
+  // ĐẢO CHIỀU CÓ CHỦ ĐÍCH so với bản 0007 của chính test này: kế hoạch cuối
+  // của AIM đếm điều kiện suất đặc biệt trên thang TỔNG (booth + hoạt động có
+  // trọng số), không còn trên thang lõi. Sessions giờ ĐƯỢC tính.
+  test('rich on sessions: NOW eligible — the total ladder gates the door', async () => {
     const sv = await student(db);
-    // 7 badges total — but only 2 are activities (entrance + 1 booth).
+    // 5 lượt, toàn weight 1 → badge_count = 5 = y. Thang lõi chỉ 2 (cổng+booth).
     await scan(db, sv, 1);
     await scan(db, sv, 2);
     await scan(db, sv, 8);
     await scan(db, sv, 9);
     await scan(db, sv, 10);
-    await db.query(
-      `update registrations set badge_count = 7
-        where event_id = 1 and student_id = $1`, [sv],
-    );
+    const core = await db.query(
+      `select core_badge_count from registrations where event_id = 1 and student_id = $1`, [sv]);
+    assert.ok(Number(core.rows[0].core_badge_count) < 5,
+      'tiền đề: thang lõi PHẢI dưới y — nếu không test này không chứng minh gì');
     const r = await db.query(
       `select * from hold_special_slot(1::smallint, $1, 1)`, [sv],
     );
-    assert.equal(r.rows[0].result, 'not_eligible',
-      'y must gate on activities walked, not on total badges');
+    assert.equal(r.rows[0].result, 'held',
+      '0012: quầy xét badge_count; nếu dòng này đỏ với not_eligible, ai đó đã trả hold về thang lõi');
   });
 
   test('five real activities: eligible', async () => {
@@ -175,13 +178,13 @@ describe('special eligibility reads the special ladder', () => {
     assert.equal(r.rows[0].result, 'held');
   });
 
-  test('control panel headcount uses the special ladder', async () => {
-    // The previous test left exactly one core-eligible student; the
-    // sessions-rich student (badge_count 7, core 2) must not inflate it.
+  test('control panel headcount matches the door rule (total ladder)', async () => {
+    // Hai test trên tạo đúng hai SV badge_count = 5 = y. Con số AIM nhìn để
+    // đoán Meet & Greet có kín chỗ phải đếm bằng ĐÚNG thước quầy đang dùng.
     const r = await db.query(
       `select students_eligible from v_special_control_panel where special_activity_id = 1`,
     );
-    assert.equal(Number(r.rows[0].students_eligible), 1);
+    assert.equal(Number(r.rows[0].students_eligible), 2);
   });
 });
 
@@ -221,50 +224,42 @@ describe('rebuild and drift cover both counters', () => {
   });
 });
 
-describe('the >70% watchdog', () => {
-  test('N=7 activities implies y=5 and matches the configured threshold', async () => {
+describe('the threshold watchdog (0012: unreachable-y, luật >70% đã gỡ)', () => {
+  // Bản 0007 của khối này ghim luật ">70% số hoạt động lõi". AIM 09/09 chốt
+  // ngưỡng tuyệt đối trên thang tổng, nên chuông duy nhất còn nghĩa là:
+  // y CAO HƠN tổng badge một SV có thể đạt → không ai vào nổi HĐ đặc biệt.
+  test('available_total sums WEIGHTS of active counting checkpoints', async () => {
     const r = await db.query(
       `select * from v_special_threshold_check where event_id = 1`,
     );
-    const row = r.rows[0];
-    // 1 entrance + 5 sponsor booths + 1 diamond = 7. Booth 11 (toggled off),
-    // sessions and bonus must not be in the denominator.
-    assert.equal(Number(row.core_checkpoints), 7);
-    assert.equal(Number(row.implied_threshold), 5);   // >70% của 7 = >4.9
-    assert.equal(row.mismatch, false);
+    // cp 1–10 đang bật và tính badge, toàn weight 1 → khả dụng 10. Booth 11
+    // (counts=false) phải đứng ngoài. y=5 ≤ 10 → im.
+    assert.equal(Number(r.rows[0].available_total), 10);
+    assert.equal(r.rows[0].mismatch, false);
   });
 
-  test('pulling a booth flips the alarm without touching y', async () => {
-    await db.query(`update checkpoints set is_active = false where id = 7`);
+  test('pulling checkpoints below y flips the alarm without touching y', async () => {
+    await db.query(`update checkpoints set is_active = false where id in (5,6,7,8,9,10)`);
     const r = await db.query(
       `select * from v_special_threshold_check where event_id = 1`,
     );
-    // N drops to 6: >70% của 6 = >4.2 → 5. Still 5 — no alarm.
-    assert.equal(Number(r.rows[0].implied_threshold), 5);
-    assert.equal(r.rows[0].mismatch, false);
-
-    await db.query(`update checkpoints set is_active = false where id = 6`);
-    const r2 = await db.query(
-      `select * from v_special_threshold_check where event_id = 1`,
-    );
-    // N=5: >3.5 → 4, configured y=5 → alarm. The view alerts; it never edits.
-    assert.equal(Number(r2.rows[0].implied_threshold), 4);
-    assert.equal(r2.rows[0].mismatch, true);
+    // Còn cp 1–4 → khả dụng 4 < y=5: reo. View chỉ báo, không bao giờ sửa y.
+    assert.equal(Number(r.rows[0].available_total), 4);
+    assert.equal(r.rows[0].mismatch, true);
     const y = await db.query(`select special_threshold_y from events where id = 1`);
     assert.equal(y.rows[0].special_threshold_y, 5);
 
-    await db.query(`update checkpoints set is_active = true where id in (6, 7)`);
+    await db.query(`update checkpoints set is_active = true where id in (5,6,7,8,9,10)`);
   });
 
-  test('N=8 implies y=6 — the boundary AIM asked about', async () => {
+  test('a weighted checkpoint raises availability by its weight, not by 1', async () => {
     await db.query(`
-      insert into checkpoints (id, event_id, zone_id, kind, name, counts_toward_badges)
-      values (12, 1, 2, 'sponsor_booth', 'Booth 7', true)`);
+      insert into checkpoints (id, event_id, zone_id, kind, name, counts_toward_badges, badge_weight)
+      values (12, 1, 1, 'hall_session', 'Brief Day', true, 4)`);
     const r = await db.query(
       `select * from v_special_threshold_check where event_id = 1`,
     );
-    assert.equal(Number(r.rows[0].core_checkpoints), 8);
-    assert.equal(Number(r.rows[0].implied_threshold), 6);  // >5.6 → 6
+    assert.equal(Number(r.rows[0].available_total), 14, '10 + Brief(4) — đếm mốc sẽ ra 11 và là bug');
     await db.query(`delete from checkpoints where id = 12`);
   });
 });

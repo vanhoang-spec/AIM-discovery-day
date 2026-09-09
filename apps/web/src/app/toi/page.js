@@ -70,7 +70,7 @@ function Progress({ p }) {
             <span className="tier-state">
               {p.special.eligible
                 ? (p.special.slots_left > 0 ? 'Đủ điều kiện — tới quầy đăng ký' : 'Đã hết suất')
-                : `Cần ${p.special.y} hoạt động (bạn có ${p.special.core_badge_count})`}
+                : `Cần ${p.special.y} badge (bạn có ${p.special.badge_count ?? p.special.core_badge_count})`}
             </span>
           </li>
         )}

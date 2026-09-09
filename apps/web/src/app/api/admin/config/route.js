@@ -35,7 +35,7 @@ export async function GET(request) {
       `select c.id, c.name, c.kind::text as kind, c.description, c.location_hint,
               c.starts_at, c.ends_at, c.capacity, c.zone_id,
               c.counts_toward_badges, c.badge_award_mode::text as badge_award_mode,
-              c.is_active, c.display_order
+              c.is_active, c.display_order, c.badge_weight
          from checkpoints c where c.event_id = $1
         order by c.display_order, c.id`, [eventId]),
     db.query(`select id, name from zones where event_id = $1 order by display_order`, [eventId]),

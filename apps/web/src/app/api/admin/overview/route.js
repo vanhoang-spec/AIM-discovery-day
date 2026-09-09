@@ -27,7 +27,15 @@ export async function GET(request) {
     db.query(
       `select count(*)::int                                   as registered,
               count(*) filter (where badge_count > 0)::int    as active,
-              count(*) filter (where core_badge_count >= 1)::int as checked_in,
+              -- [0012] Cổng của AIM không tính badge (weight/cờ), nên "đã vào
+              -- cổng" phải đếm thẳng badge cổng trong attendance, không suy từ
+              -- thang lõi nữa.
+              count(*) filter (where exists (
+                select 1 from attendance a
+                  join checkpoints c on c.id = a.checkpoint_id and c.event_id = a.event_id
+                 where a.event_id = registrations.event_id
+                   and a.student_id = registrations.student_id
+                   and a.voided_at is null and c.kind = 'entrance'))::int as checked_in,
               coalesce(sum(badge_count), 0)::int              as badges_total
          from registrations where event_id = $1`,
       [eventId],

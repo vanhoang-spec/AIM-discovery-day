@@ -113,7 +113,11 @@ export async function GET(request) {
       })),
       special: {
         y,
-        eligible: y != null && reg.core_badge_count >= y,
+        // [0012] Điều kiện suất đặc biệt xét thang TỔNG (AIM 09/09) — phải
+        // trùng với hold_special_slot, nếu không màn hình nói "đủ" mà quầy
+        // từ chối.
+        eligible: y != null && reg.badge_count >= y,
+        badge_count: reg.badge_count,
         core_badge_count: reg.core_badge_count,
         slots_left: special.rows[0]?.slots_left ?? 0,
       },

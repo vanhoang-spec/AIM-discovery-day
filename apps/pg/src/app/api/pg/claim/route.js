@@ -43,7 +43,7 @@ export async function POST(request) {
     const [checkpoints, event] = await Promise.all([
       db.query(
         `select c.id, c.name, c.kind, c.zone_id, z.name as zone_name,
-                c.counts_toward_badges
+                c.counts_toward_badges, c.badge_weight
            from checkpoints c
            left join zones z on z.id = c.zone_id and z.event_id = c.event_id
           where c.event_id = $1 and c.is_active

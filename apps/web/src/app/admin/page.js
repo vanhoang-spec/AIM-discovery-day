@@ -91,9 +91,9 @@ function Overview({ api, actor, eventId }) {
 
       {tc?.mismatch && (
         <p className="admin-alert">
-          ⚠️ Ngưỡng y = {tc.configured_threshold} lệch khỏi luật &gt;70%:
-          {' '}{tc.core_checkpoints} hoạt động → y nên là {tc.implied_threshold}.
-          Sửa ở tab Cấu hình nếu đây không phải chủ đích.
+          ⚠️ Ngưỡng y = {tc.configured_threshold} CAO HƠN tổng badge một SV có thể đạt
+          ({tc.available_total}) — không ai đủ điều kiện vào HĐ đặc biệt.
+          Sửa y ở tab Cấu hình, hoặc kiểm tra lại trọng số các hoạt động.
         </p>
       )}
 
@@ -530,7 +530,7 @@ function Checkpoints({ api, actor, eventId }) {
       <table className="admin-table">
         <thead><tr>
           <th>Hoạt động</th><th>Loại</th><th>Zone</th><th>Giờ</th>
-          <th>Tính badge</th><th>Đang mở</th><th></th>
+          <th>Tính badge</th><th>Trọng số</th><th>Đang mở</th><th></th>
         </tr></thead>
         <tbody>
           {cfg.checkpoints.map((c) => (
@@ -540,6 +540,7 @@ function Checkpoints({ api, actor, eventId }) {
               <td>{cfg.zones.find((z) => z.id === c.zone_id)?.name ?? '—'}</td>
               <td>{c.starts_at ? `${t(c.starts_at)}–${t(c.ends_at)}` : 'cả ngày'}</td>
               <td>{c.counts_toward_badges ? '✓' : '—'}</td>
+              <td>{c.counts_toward_badges ? (c.badge_weight ?? 1) : '—'}</td>
               <td>{c.is_active ? '✓' : 'tắt'}</td>
               <td className="admin-row-actions">
                 {(c.kind === 'sponsor_booth' || c.kind === 'diamond_booth') && (
@@ -561,7 +562,8 @@ function Checkpoints({ api, actor, eventId }) {
                 <button type="button" className="admin-btn" onClick={() =>
                   setDraft({ id: c.id, name: c.name, description: c.description ?? '',
                              location_hint: c.location_hint ?? '',
-                             starts_at: c.starts_at ?? '', ends_at: c.ends_at ?? '' })
+                             starts_at: c.starts_at ?? '', ends_at: c.ends_at ?? '',
+                             badge_weight: c.badge_weight ?? 1 })
                 }>Sửa</button>
                 <button type="button" className="admin-btn" onClick={() => {
                   const reason = `Đổi counts_toward_badges cho "${c.name}"`;
@@ -613,6 +615,7 @@ function Checkpoints({ api, actor, eventId }) {
             {draft.new && (
               <select className="admin-input" value={draft.kind}
                 onChange={(e) => setDraft((d) => ({ ...d, kind: e.target.value }))}>
+                <option value="entrance">Cổng check-in</option>
                 <option value="sponsor_booth">Gian hàng NTT</option>
                 <option value="diamond_booth">Gian hàng Kim cương</option>
                 <option value="hall_session">Sân khấu chính</option>
@@ -625,6 +628,13 @@ function Checkpoints({ api, actor, eventId }) {
             <div className="admin-form-row">
               {field('starts_at', 'Bắt đầu', 'datetime-local')}
               {field('ends_at', 'Kết thúc', 'datetime-local')}
+            </div>
+            <div className="admin-form-row">
+              {field('badge_weight', 'Trọng số badge (1–9)', 'number')}
+              <span className="muted" style={{ alignSelf: 'center', fontSize: 12.5 }}>
+                Kế hoạch AIM 12/09: booth = 1 · Brief Day & Learning zone = 4 · Inspiration = 3.
+                Cổng dùng nút "Ngừng tính badge" thay vì trọng số 0.
+              </span>
             </div>
             <div className="admin-form-row">
               <button type="button" className="admin-btn admin-btn-primary" onClick={save}>Lưu</button>
