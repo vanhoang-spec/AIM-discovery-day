@@ -22,11 +22,13 @@ import {
 } from '@/lib/session';
 import { startScanner, feedback, holdWakeLock, IDLE_PAUSE_MS } from '@/lib/scanner';
 import { screenFor } from '@/lib/boot-state';
+import { useUpdateAvailable } from '@/lib/update-check';
 
 const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
 
 export default function ScanPage() {
   const router = useRouter();
+  const updateAvailable = useUpdateAvailable();
   const [golden, setGolden] = useState(null);
   const videoRef = useRef(null);
   const scannerRef = useRef(null);
@@ -278,6 +280,18 @@ export default function ScanPage() {
         <span>Đang quét: {checkpoint.name}</span>
         <small>đổi ▸</small>
       </button>
+
+      {updateAvailable && (
+        <button
+          type="button"
+          onClick={() => location.reload()}
+          style={{ borderRadius: 0, minHeight: 0, width: '100%', border: 'none',
+                   background: 'var(--info)', color: 'var(--info-ink)',
+                   padding: '10px 12px', fontWeight: 700 }}
+        >
+          ⬆ CÓ BẢN CẬP NHẬT — chạm để làm mới (không mất dữ liệu trên máy)
+        </button>
+      )}
 
       {golden && golden.zone_id === checkpoint.zone_id && (
         <div className="goldbar">
