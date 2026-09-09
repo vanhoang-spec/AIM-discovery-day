@@ -511,6 +511,18 @@ scratchpad phiên 08/09; căn cứ đồng ý: form gốc AIM có mục đồng 
 ghi `v1-2026-08`. Phát hiện kèm: nút "Mở đăng ký" chưa từng chạy được (42P08 — sửa cùng
 ngày, xem commit 6371f75).
 
+**Cấu hình sự kiện dựng xong — chiều 09/09, Claude thao tác qua phiên admin của anh
+Hoàng (key không rời trình duyệt), kiểm-trước-tạo-sau nên chạy lại không sinh trùng.**
+Mỗi điểm 13 checkpoint: cổng entrance KHÔNG tính badge · booth NTT w1 (HN 6 booth không
+back-up; HCM 6 + Back-up đã TẮT chờ NTT) · Brief Day + 2 Learning zone w4 · Inspiration w3
+(HN 3, HCM 2). y=10, z=1 cả hai. 4 HĐ đặc biệt (SSC + M&G; HN 350 ghế, HCM 150) slot sinh
+đủ, đang ĐÓNG — mở sáng 12/09. Chuông ngưỡng im: khả dụng HN 27 / HCM 24 ≥ y=10. Gift tier
+CHƯA tạo — chờ AIM chốt số kho; tên hiển thị sẽ là "Quà đặc biệt" (không lộ tên quà thật).
+
+Sự cố trong lúc cấu hình → hai bản vá đã lên: POST checkpoint 500 câm (postgres.js cấm
+undefined trong params, PGlite lặng lẽ coi là null nên dev không bao giờ thấy — sửa ?? null
++ lint thứ ba cấm patch.x trần + catch trả chữ thay 500 câm, commit 6fcc55e).
+
 **Đổi luật badge theo kế hoạch cuối của AIM — 0012, deploy 09/09.** File "Planning by
 AIM" (bản cuối 09/09) + hai đính chính miệng: booth 1 badge, Brief Day/Learning zone **4**,
 Inspiration **3** ở cả hai điểm; điều kiện vào HĐ đặc biệt = **tối thiểu 10 badge trên thang
