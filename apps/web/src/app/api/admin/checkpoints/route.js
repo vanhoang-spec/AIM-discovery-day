@@ -86,8 +86,12 @@ export async function POST(request) {
      returning id`,
     [eventId, patch.zone_id ?? null, patch.kind, patch.name, patch.description ?? null,
      patch.location_hint ?? null, patch.starts_at ?? null, patch.ends_at ?? null,
-     patch.capacity ?? null, patch.counts_toward_badges, patch.badge_award_mode,
-     patch.is_active, patch.display_order, patch.badge_weight ?? null],
+     // postgres.js CẤM undefined trong params (PGlite thì lặng lẽ coi là null
+     // — vì thế bug này vô hình trên dev). Route chết 500 câm trên production
+     // chiều 09/09 ngay lần đầu Layer B được bấm thật. Mọi trường tuỳ chọn
+     // phải ?? null trước khi vào mảng.
+     patch.capacity ?? null, patch.counts_toward_badges ?? null, patch.badge_award_mode ?? null,
+     patch.is_active ?? null, patch.display_order ?? null, patch.badge_weight ?? null],
   );
   } catch (err) {
     console.error('create_checkpoint failed:', err);

@@ -64,6 +64,25 @@ describe('SQL param lint (42P08 / 42P18 — sự cố nút "Mở đăng ký" 08/
     assert.deepEqual(bad, [], '\n' + bad.join('\n'));
   });
 
+  test('không param nào trong mảng query là patch.x trần (postgres.js cấm undefined)', () => {
+    // 09/09 chiều: POST checkpoint 500 câm trên production, chạy êm trên dev —
+    // PGlite coi undefined là null, postgres.js ném UNDEFINED_VALUE. Mọi trường
+    // tuỳ chọn phải `?? null` trước khi vào mảng params.
+    const bad = [];
+    for (const f of FILES) {
+      const src = readFileSync(f, 'utf8');
+      // Bắt "patch.x," hoặc "patch.x]" đứng trần (không ?? phía sau) trong
+      // ngữ cảnh mảng tham số nhiều dòng của db.query.
+      for (const m of src.matchAll(/(?:^|[\[,]\s*)patch\.([a-z_]+)\s*(?=[,\]])/gm)) {
+        const tail = src.slice(m.index, m.index + m[0].length + 30);
+        if (!/\?\?/.test(tail) && !['name', 'kind'].includes(m[1])) {
+          bad.push(`${f.replace(ROOT, '.')} — patch.${m[1]} trần (thiếu ?? null)`);
+        }
+      }
+    }
+    assert.deepEqual(bad, [], '\n' + bad.join('\n'));
+  });
+
   test('lint tự chứng minh nó bắt được đúng mẫu lỗi gốc', () => {
     // Chính câu đã làm sập nút "Mở đăng ký" — nếu regex lỏng tay, test này đỏ.
     const original = "values ($1, 'super_admin', $2, 'set_event_ops', 'event', $1::text, $3::jsonb)";
