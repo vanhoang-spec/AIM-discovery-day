@@ -486,6 +486,37 @@ Tiêu chí gốc vẫn giữ nguyên bên dưới cho lần chạy đủ (có t�
 - [ ] Kịch bản **bắt buộc phải có**: 3 walk-in, 2 người đăng ký *sau khi* máy PG đã cache roster, 1 điện thoại chết, 2 SV trùng họ tên. Roster trên máy PG là *ảnh chụp tĩnh* trong khi ngày sự kiện là *danh sách động* — diễn tập với roster sạch sẽ không phát hiện được khe hở này.
 - [ ] Có phương án B bằng văn bản nếu không đạt (sổ vé giấy đã in, sẵn tại kho).
 
+### 4.3c Test tải nhiều mức độ, áp lực tối đa — 09/09 tối (kết quả thật)
+Chạy theo yêu cầu "tạo áp lực tối đa" để chốt câu hỏi nâng gói Supabase. Hai mũi, tuần tự
+(máy đo không tự làm nhiễu số; `dispatchLag` 1–5ms mọi bậc → số đo tin được):
+
+**Mũi đọc — production thật, chỉ-đọc, hỗn hợp đúng tỉ lệ lưu lượng (658 SV thật trong DB):**
+| bậc (req/s) | n | ok% | p50 | p95 |
+|---|---|---|---|---|
+| 36 | 4.320 | 100.0 | 112ms | 662ms |
+| 72 | 8.640 | 100.0 | 109ms | 662ms |
+| 144 | 17.280 | 100.0 | 105ms | 655ms |
+| 288 | 34.560 | 100.0 | 103ms | 650ms |
+| **576** | **69.120** | **100.0** | **102ms** | **683ms** |
+
+**KHÔNG gãy tới 576 req/s** — gấp 8 lần bài mô phỏng §4.3 và ~16 lần nhu cầu thật. p50 phẳng
+tuyệt đối qua mọi bậc. (Bậc 576: vài chục lỗi lẻ + p99 3,7s là phía máy đo cầm >1.100 kết nối.)
+
+**Mũi ghi — sandbox, hỗn hợp ghi ngày sự kiện (cổng + booth + quầy quà), 3 mức:**
+| mức | thiết bị giữ kết nối | nhịp ghi | lỗi | p95 | lệch ledger |
+|---|---|---|---|---|---|
+| 1× cao điểm 2 đầu | 104 | 10,4/s | 0 | 120–127ms | 0 |
+| 2× nhịp quét | 104 | 21,5/s | 0 | 117–123ms | 0 |
+| ép trần kết nối | **203 xin vào** | 18,8/s | 0 | 106–123ms | 0 |
+
+Mức 3 chạm tường đúng chỗ đã biết: pooler từ chối **đúng 1** kết nối thứ 201 (EMAXCONN,
+limit 200) ngay lúc mở — 199 thiết bị bên trong không ảnh hưởng gì, backend đỉnh chỉ 20/60.
+Kiểu đổ là "từ chối sạch ở cửa", không phải sập dây chuyền.
+
+**Kết luận:** KHÔNG nâng gói Supabase trước 12/09. Trần thật là 200 client pooler (đủ cho
+~45 máy PG + instance Vercel, ngày thật dùng ~half); CPU/RAM database chưa bao giờ là nút
+thắt (DB active ≤3 trong mọi bài ghi). Nâng gói = restart ~2 phút, rủi ro thuần túy.
+
 ### 4.4b Diễn tập vai PG/SV — 09/09, trên event nháp 3 (đã chạy, đang tiếp diễn)
 Team đóng vai PG/SV quét thật trên máy thật; ledger event 1/2 không bị đụng. Mỗi phát hiện
 → sửa → deploy trong cùng buổi; các máy đang mở tự thấy nút Cập nhật (753a331) từ deploy sau:
