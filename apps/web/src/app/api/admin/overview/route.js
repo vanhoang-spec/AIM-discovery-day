@@ -22,7 +22,7 @@ export async function GET(request) {
   const eventId = Number(new URL(request.url).searchParams.get('event') ?? 1);
   const db = await getDb();
 
-  const [totals, zones, tiers, special, devices, drift, threshold, golden] = await Promise.all([
+  const [totals, zones, tiers, special, devices, histogram, drift, threshold, golden] = await Promise.all([
     // Registered / checked-in / badge funnel — all from registrations.
     db.query(
       `select count(*)::int                                   as registered,
@@ -73,6 +73,14 @@ export async function GET(request) {
     ),
     db.query(`select * from v_special_control_panel where event_id = $1`, [eventId]),
     db.query(`select * from v_device_health where event_id = $1 limit 60`, [eventId]),
+    // Phân bố badge — yêu cầu AIM 09/09: nhìn được bao nhiêu SV đang TIỆM CẬN
+    // ngưỡng quà đặc biệt (7 HCM / 6 HN) để dự trù kho trước khi cạn.
+    db.query(
+      `select badge_count::int as badges, count(*)::int as students
+         from registrations where event_id = $1
+        group by 1 order by 1`,
+      [eventId],
+    ),
     // Drift: a count is enough for the dashboard tile; the reconciliation
     // screen drills in. 0 is the only good number.
     db.query(
@@ -92,6 +100,7 @@ export async function GET(request) {
       totals: totals.rows[0],
       zones: zones.rows,
       tiers: tiers.rows,
+      badge_histogram: histogram.rows,
       special: special.rows,
       devices: devices.rows,
       drift: drift.rows[0].drifted,

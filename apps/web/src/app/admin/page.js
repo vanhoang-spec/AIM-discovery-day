@@ -72,7 +72,10 @@ function Overview({ api, actor, eventId }) {
   if (err) return <p className="admin-err">Lỗi tải dashboard: {err}</p>;
   if (!data) return <p className="muted">Đang tải…</p>;
 
-  const { totals, zones, tiers, special, devices, drift, threshold_check: tc, golden } = data;
+  const { totals, zones, tiers, special, devices, drift, threshold_check: tc, golden,
+          badge_histogram: hist = [] } = data;
+  // Ngưỡng quà đặc biệt (bậc 1). Chưa tạo tier thì chỉ hiển thị phân bố thô.
+  const giftReq = tiers[0]?.required_badges ?? null;
   const goldenActive = golden?.active;
   const maxScan = Math.max(1, ...zones.map((z) => z.scans_15m));
 
@@ -140,6 +143,44 @@ Nhớ báo MC và cắm biển zone.`)) {
         ⚡ = mở Giờ Vàng ×2 (40 phút · nắp 80 · ngân sách ngày {golden ? golden.golden_budget : 300}).
         Kênh báo sinh viên là MC + biển zone + PG đọc khi quét — app SV không nhận thông báo đẩy.
       </p>
+
+      <h3>Phân bố badge — dự trù quà đặc biệt</h3>
+      {hist.length === 0 ? (
+        <p className="muted">Chưa có sinh viên nào có badge.</p>
+      ) : (
+        <>
+          <table className="admin-table" style={{ maxWidth: 640 }}>
+            <thead><tr><th>Số badge</th><th>Số SV</th><th></th></tr></thead>
+            <tbody>
+              {hist.map((h) => {
+                const near = giftReq != null && h.badges >= giftReq - 2 && h.badges < giftReq;
+                const over = giftReq != null && h.badges >= giftReq;
+                return (
+                  <tr key={h.badges}>
+                    <td className="num">{h.badges}</td>
+                    <td className="num">{h.students}</td>
+                    <td className={near ? 'cell-warn' : over ? 'cell-ok' : ''}>
+                      {near && 'tiệm cận ngưỡng quà'}
+                      {over && 'đã đủ đổi quà'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {giftReq != null && (
+            <p className="muted" style={{ marginTop: -6 }}>
+              Sắp đủ (còn 1–2 badge): <b>
+                {hist.filter((h) => h.badges >= giftReq - 2 && h.badges < giftReq)
+                     .reduce((s, h) => s + h.students, 0)}</b> SV ·
+              đã đủ ngưỡng {giftReq}: <b>
+                {hist.filter((h) => h.badges >= giftReq).reduce((s, h) => s + h.students, 0)}</b> SV ·
+              kho còn: <b>{tiers[0] ? tiers[0].stock_total - tiers[0].stock_issued : '—'}</b>.
+              Cột "sắp đủ" là con số dự trù kho — nó sẽ gõ cửa quầy quà trong giờ tới.
+            </p>
+          )}
+        </>
+      )}
 
       <h3>Phễu quà</h3>
       <table className="admin-table">

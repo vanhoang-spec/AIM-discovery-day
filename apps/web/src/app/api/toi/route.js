@@ -8,9 +8,10 @@
  * fetch its progress, and nobody can fetch someone else's without their
  * token, which is exactly the same trust boundary as the QR itself.
  *
- * The response deliberately never carries exact stock numbers — 'ok' /
- * 'low' / 'out' only. Telling 20 queueing students "còn 12 phần" is how a
- * counter argument starts at the gift desk. 'low' = dưới 15%.
+ * Stock: v1 giấu số chính xác (chỉ ok/low/out) để tránh cãi nhau ở quầy.
+ * 09/09 chủ dự án đổi chủ đích: quà đặc biệt là MỘT bậc duy nhất và AIM muốn
+ * SV thấy "còn N suất" để tự quyết có đi đổi nữa hay không, và thấy "ĐÃ HẾT"
+ * để khỏi tìm quầy. `remaining` là số thật; `stock` giữ nguyên cho style.
  *
  * Per-student and therefore uncacheable — this is the ~200-byte "cá nhân"
  * lane. Clients poll it foreground-only every 30s; at 1.900 phones that is
@@ -69,6 +70,7 @@ export async function GET(request) {
     ),
     db.query(
       `select id, tier, required_badges, gift_name,
+              greatest(stock_total - stock_issued, 0)::int as remaining,
               case
                 when stock_issued >= stock_total then 'out'
                 when stock_total - stock_issued < stock_total * 0.15 then 'low'
@@ -109,6 +111,7 @@ export async function GET(request) {
         required: t.required_badges,
         name: t.gift_name,
         stock: t.stock,
+        remaining: t.remaining,
         redeemed: redeemedIds.has(t.id),
       })),
       special: {

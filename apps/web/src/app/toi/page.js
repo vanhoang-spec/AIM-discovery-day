@@ -41,7 +41,8 @@ function Progress({ p }) {
 
       {next && (
         <p className="progress-next">
-          Còn <b>{next.required - p.badge_count} badge</b> nữa là đổi được {next.name}.
+          Còn <b>{next.required - p.badge_count} badge</b> nữa là đổi được {next.name}
+          {next.remaining != null ? ` (còn ${next.remaining} suất)` : ''}.
         </p>
       )}
 
@@ -56,8 +57,10 @@ function Progress({ p }) {
               <span className="tier-name">{t.name}</span>
               <span className="tier-state">
                 {state === 'done' && 'Đã nhận'}
-                {state === 'ready' && 'Đủ điều kiện — tới quầy quà'}
-                {state === 'out' && 'ĐÃ HẾT'}
+                {state === 'ready' && (t.remaining != null
+                  ? `Đủ điều kiện — còn ${t.remaining} suất, tới quầy quà`
+                  : 'Đủ điều kiện — tới quầy quà')}
+                {state === 'out' && 'ĐÃ HẾT QUÀ — không cần tới quầy nữa'}
                 {state === 'locked' && `Còn thiếu ${t.required - p.badge_count}`}
               </span>
             </li>
