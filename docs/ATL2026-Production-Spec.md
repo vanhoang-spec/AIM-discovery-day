@@ -511,6 +511,15 @@ scratchpad phiên 08/09; căn cứ đồng ý: form gốc AIM có mục đồng 
 ghi `v1-2026-08`. Phát hiện kèm: nút "Mở đăng ký" chưa từng chạy được (42P08 — sửa cùng
 ngày, xem commit 6371f75).
 
+**Sân diễn tập người thật + 41 máy quét thật — tối 09/09.** 41 thiết bị đặt tên theo
+vị trí (CONG-01..04 · BOOTH-01..06/07 · HOITRUONG-01..03 · QUA-01..02 · SUAT-01..02 ·
+DUPHONG-01..03 mỗi điểm), mã nhận máy xuất CSV tải thẳng về máy anh Hoàng để in thẻ —
+không đi qua kênh nào khác. Diễn tập đóng vai PG/SV chạy trên **event 3 "DIỄN TẬP"**
+(nhân bản từ HN: 13 checkpoint + 3 zone + 2 HĐ đặc biệt đã MỞ + tier "Quà đặc biệt"
+ngưỡng 7/kho 10 + 3 máy DIENTAP-01..03), online ĐÓNG nên form công khai không lộ; team
+vào bằng /dang-ky?nhanh. Lý do bắt buộc tách event: ledger append-only — quét thử trên
+event thật sẽ nằm vĩnh viễn trong số liệu HN/HCM và nhiễu báo cáo booth của NTT.
+
 **Cấu hình sự kiện dựng xong — chiều 09/09, Claude thao tác qua phiên admin của anh
 Hoàng (key không rời trình duyệt), kiểm-trước-tạo-sau nên chạy lại không sinh trùng.**
 Mỗi điểm 13 checkpoint: cổng entrance KHÔNG tính badge · booth NTT w1 (HN 6 booth không
