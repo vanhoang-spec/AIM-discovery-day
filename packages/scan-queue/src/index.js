@@ -148,6 +148,12 @@ export class ScanQueue {
     return { duplicate: false, local: true, item };
   }
 
+  /** One item by uid — the scan screen re-reads its last scan after a flush
+   *  to swap "~ chờ đồng bộ" for the server's verdict and the student's name. */
+  async get(scanUid) {
+    return this.store.get(scanUid);
+  }
+
   /** Items still needing the network, oldest first. */
   async pending() {
     const all = await this.store.all();

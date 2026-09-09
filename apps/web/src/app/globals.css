@@ -370,6 +370,9 @@ a { color: var(--accent); }
 }
 .admin-table td { padding: 7px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
 .admin-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Tiêu đề cột số canh phải theo cột số bên dưới — góp ý của anh Hoàng 09/09:
+   header lệch trái làm mắt phải nhảy qua lại khi dò một cột toàn số. */
+.admin-table th.num { text-align: right; }
 .admin h3 { font-size: 15px; margin: 18px 0 4px; }
 .admin h4 { font-size: 14px; margin: 14px 0 6px; }
 .bar-cell { width: 30%; }

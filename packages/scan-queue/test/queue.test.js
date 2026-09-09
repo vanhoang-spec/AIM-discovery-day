@@ -300,3 +300,19 @@ describe('housekeeping', () => {
     assert.equal((await q.stats()).unsent, 20, 'unsent scans are never pruned');
   });
 });
+
+describe('get — màn quét đọc lại lượt của chính nó sau flush (09/09)', () => {
+  test('trả về bản đã settle với tên + badge từ server', async () => {
+    const { item } = await q.enqueue({ student_seq: 8101, checkpoint_id: 2 });
+    await q.flush();
+    const settled = await q.get(item.scan_uid);
+    assert.equal(settled.state, STATE.CONFIRMED);
+    assert.equal(settled.server_status, 'counted');
+    assert.equal(settled.student_name, 'Nguyễn Thị Minh An');
+    assert.equal(settled.badge_count, 1);
+  });
+
+  test('uid không tồn tại → undefined, không ném lỗi', async () => {
+    assert.equal(await q.get('khong-co-uid-nay'), undefined);
+  });
+});

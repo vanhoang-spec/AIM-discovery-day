@@ -19,40 +19,123 @@ const CAPTURE = { width: { ideal: 1280 }, height: { ideal: 720 } };
 const DECODE_FPS = 10;
 export const IDLE_PAUSE_MS = 8000;
 
+/* ------------------------------------------------------------------ *
+ * Decoder self-test — vì "máy không phản hồi gì hết" (diễn tập 09/09).
+ *
+ * Hai kiểu hỏng đều CÂM nếu không tự kiểm tra:
+ *
+ *   1. BarcodeDetector trên một số máy Android khai "hỗ trợ qr_code" nhưng
+ *      thiếu model MLKit — detect() chạy êm và không bao giờ thấy mã nào.
+ *   2. Bộ đọc WASM nạp TRỄ ở khung hình đầu tiên; sau một lần deploy, trang
+ *      cũ xin chunk cũ đã bị Vercel dọn → 404 mỗi khung hình, bị nuốt bởi
+ *      "a bad frame is normal" → camera sáng, quét mãi không ra gì.
+ *
+ * Thuốc chung: một mã QR BIẾT TRƯỚC, nhúng sẵn dưới dạng ma trận bit (không
+ * cần thư viện sinh QR trong bundle). Bộ đọc nào không đọc nổi nó thì hoặc
+ * bị thay bằng bộ khác, hoặc báo lỗi TO cho PG — không bao giờ im lặng.
+ * ------------------------------------------------------------------ */
+export const SELF_TEST_PAYLOAD = 'ATL2026-SELFTEST-OK';
+// qrcode.create('ATL2026-SELFTEST-OK', {errorCorrectionLevel:'M'}) — version 1, 21×21.
+export const SELF_TEST_MATRIX = [
+  '111111101100101111111', '100000100101001000001', '101110101101001011101',
+  '101110101010101011101', '101110101010101011101', '100000101111101000001',
+  '111111101010101111111', '000000000010000000000', '001111110000010111101',
+  '010000011100001100110', '001111111100110111100', '100100000001111011101',
+  '110011111111110110011', '000000000000110011000', '111111101100000101110',
+  '100000101001100100101', '101110101101111011101', '101110101111010000000',
+  '101110101101010111101', '100000100111110100000', '111111100110101010010',
+];
+
+/** Vẽ ma trận thành ảnh ImageData-like (scale 4, quiet zone 4 module). */
+export function selfTestImage() {
+  const scale = 4, margin = 4;
+  const n = SELF_TEST_MATRIX.length;
+  const size = (n + margin * 2) * scale;
+  const data = new Uint8ClampedArray(size * size * 4).fill(255);
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      if (SELF_TEST_MATRIX[y][x] !== '1') continue;
+      for (let dy = 0; dy < scale; dy++) {
+        for (let dx = 0; dx < scale; dx++) {
+          const px = ((y + margin) * scale + dy) * size + (x + margin) * scale + dx;
+          data[px * 4] = 0; data[px * 4 + 1] = 0; data[px * 4 + 2] = 0;
+        }
+      }
+    }
+  }
+  return { data, width: size, height: size };
+}
+
 let zxing;
+let nativeVerified = null; // kết quả self-test native, một lần cho cả phiên trang
+
+/** Nạp VÀ chứng minh bộ đọc WASM ngay lúc mở camera, không đợi khung hình đầu. */
+async function loadWasmDecoder() {
+  if (!zxing) {
+    zxing = await import('zxing-wasm/reader'); // trang cũ sau deploy: ném 404 TẠI ĐÂY, hiện rõ
+  }
+  const res = await zxing.readBarcodes(selfTestImage(), {
+    tryHarder: true, formats: ['QRCode'], maxNumberOfSymbols: 1,
+  });
+  if (res?.[0]?.text !== SELF_TEST_PAYLOAD) {
+    throw new Error('Bộ đọc WASM không qua được self-test');
+  }
+}
+
+async function nativeDetectorWorks(det) {
+  if (nativeVerified !== null) return nativeVerified;
+  try {
+    const img = selfTestImage();
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    canvas.getContext('2d').putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
+    const codes = await det.detect(canvas);
+    nativeVerified = codes?.[0]?.rawValue === SELF_TEST_PAYLOAD;
+  } catch {
+    nativeVerified = false;
+  }
+  return nativeVerified;
+}
 
 async function decodeWithWasm(bitmapSource) {
-  if (!zxing) {
-    const mod = await import('zxing-wasm/reader');
-    zxing = mod;
-  }
   const results = await zxing.readBarcodes(bitmapSource, {
-    tryHarder: false,          // speed over exhaustiveness; the QR is small and clean
+    // tryHarder bật từ 09/09: SV chìa MÀN HÌNH điện thoại, lóa + moiré làm
+    // chế độ nhanh trượt hoài. Chậm hơn vài chục ms một khung — rẻ hơn nhiều
+    // so với một PG đứng vẫy mã mà máy "không phản hồi gì hết".
+    tryHarder: true,
     formats: ['QRCode'],
     maxNumberOfSymbols: 1,
   });
   return results?.[0]?.text ?? null;
 }
 
-/** Pick the fastest decoder this phone offers. */
+/**
+ * Pick the fastest decoder this phone offers — nhưng chỉ sau khi nó ĐỌC ĐƯỢC
+ * mã tự kiểm tra. Ném lỗi khi cả hai bộ đọc cùng hỏng; startScanner sẽ báo
+ * `onError(err, 'decoder')` để UI hiện hướng xử lý thay vì im lặng.
+ */
 export async function createDecoder() {
   if (typeof globalThis.BarcodeDetector === 'function') {
     try {
       const supported = await globalThis.BarcodeDetector.getSupportedFormats();
       if (supported.includes('qr_code')) {
         const det = new globalThis.BarcodeDetector({ formats: ['qr_code'] });
-        return {
-          kind: 'native',
-          decode: async (video) => {
-            const codes = await det.detect(video);
-            return codes?.[0]?.rawValue ?? null;
-          },
-        };
+        if (await nativeDetectorWorks(det)) {
+          return {
+            kind: 'native',
+            decode: async (video) => {
+              const codes = await det.detect(video);
+              return codes?.[0]?.rawValue ?? null;
+            },
+          };
+        }
       }
     } catch {
       /* fall through to WASM */
     }
   }
+  await loadWasmDecoder();
   return {
     kind: 'wasm',
     decode: async (video) => {
@@ -79,7 +162,7 @@ export async function createDecoder() {
  * held in front of the lens decodes every frame, and without this the PG would
  * get thirty identical results a second.
  */
-export async function startScanner({ video, onCode, onError, cooldownMs = 2500 }) {
+export async function startScanner({ video, onCode, onError, onTrackEnd, cooldownMs = 2500 }) {
   let stream, raf, timer, stopped = false, lastCode = null, lastAt = 0;
 
   try {
@@ -88,7 +171,7 @@ export async function startScanner({ video, onCode, onError, cooldownMs = 2500 }
       audio: false,
     });
   } catch (err) {
-    onError?.(err);
+    onError?.(err, 'camera');
     return { stop() {}, ok: false };
   }
 
@@ -97,7 +180,22 @@ export async function startScanner({ video, onCode, onError, cooldownMs = 2500 }
   video.muted = true;
   await video.play().catch(() => {});
 
-  const decoder = await createDecoder();
+  // iOS giết track camera khi khoá màn hình / chuyển app — video đứng hình ở
+  // khung cuối, nhìn như đang chạy. Báo ra để UI về trạng thái "Chạm để quét"
+  // thay vì để PG quét vào một tấm ảnh tĩnh.
+  stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+    if (!stopped) onTrackEnd?.();
+  });
+
+  let decoder;
+  try {
+    decoder = await createDecoder();
+  } catch (err) {
+    stream.getTracks().forEach((t) => t.stop());
+    video.srcObject = null;
+    onError?.(err, 'decoder');
+    return { stop() {}, ok: false };
+  }
   const interval = 1000 / DECODE_FPS;
   let lastTick = 0;
 

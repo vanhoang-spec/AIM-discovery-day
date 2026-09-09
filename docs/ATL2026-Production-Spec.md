@@ -486,6 +486,31 @@ Tiêu chí gốc vẫn giữ nguyên bên dưới cho lần chạy đủ (có t�
 - [ ] Kịch bản **bắt buộc phải có**: 3 walk-in, 2 người đăng ký *sau khi* máy PG đã cache roster, 1 điện thoại chết, 2 SV trùng họ tên. Roster trên máy PG là *ảnh chụp tĩnh* trong khi ngày sự kiện là *danh sách động* — diễn tập với roster sạch sẽ không phát hiện được khe hở này.
 - [ ] Có phương án B bằng văn bản nếu không đạt (sổ vé giấy đã in, sẵn tại kho).
 
+### 4.4b Diễn tập vai PG/SV — 09/09, trên event nháp 3 (đã chạy, đang tiếp diễn)
+Team đóng vai PG/SV quét thật trên máy thật; ledger event 1/2 không bị đụng. Mỗi phát hiện
+→ sửa → deploy trong cùng buổi; các máy đang mở tự thấy nút Cập nhật (753a331) từ deploy sau:
+- **Máy chấp nhận QR của điểm kia** với màn xanh "SV mới đăng ký" (server từ chối âm thầm
+  sau đó trong hàng đợi) → `verifyToken` thêm `expectedEventInstance`: chặn ngay tại máy,
+  offline, màn đỏ "MÃ CỦA ĐIỂM KHÁC" (45bcb4b).
+- **Lý do từ chối bị nuốt** ở hàng-chờ → bảng `REJECT_REASON` dịch `server_status` thành lời
+  người đọc hiểu; giờ dùng chung /quet + /hang-cho (`lib/scan-verdict.js`).
+- **Kết quả quét rơi dưới mép màn hình** → overlay đè đáy khung camera (45bcb4b).
+- **"Mỗi lần deploy phải cài lại máy?"** → không: chỉ cần tải lại trang. `/api/version` +
+  poll 5 phút + nút "⬆ CÓ BẢN CẬP NHẬT" (753a331).
+- **"Máy không phản hồi gì hết" khi quét** (09/09 chiều) — ba lỗ câm được vá cùng lúc:
+  (a) bộ đọc WASM nạp trễ ở khung hình đầu; sau deploy, trang cũ xin chunk đã bị dọn → 404
+  mỗi khung, bị nuốt bởi catch "bad frame is normal" → camera sáng, không bao giờ ra kết quả.
+  Giờ nạp + **tự kiểm tra bằng một mã QR nhúng sẵn** ngay lúc mở camera; hỏng → màn đỏ
+  "Bộ đọc mã không khởi động được" + nút tải lại. (b) BarcodeDetector "giả sống" trên Android
+  thiếu MLKit → phải giải mã được mã tự kiểm tra rồi mới được cầm camera, trượt thì rơi về
+  WASM. (c) exception sau giải mã (IndexedDB…) rơi vào promise không ai đợi → bọc toàn bộ
+  handleCode, luật mới: *đã giải mã ra mã QR thì màn hình PHẢI đổi*. Kèm: `tryHarder` bật
+  (quét màn hình lóa), track camera bị iOS giết → về "Chạm để quét" thay vì đứng hình.
+- **Tên SV phải hiện ngay tại màn quét** → server vốn trả `student_name`/`badge_count`/
+  `status` theo từng scan_uid; giờ thẻ kết quả **tự cập nhật sau flush**: xanh "ĐÃ GHI NHẬN ✓
+  + tên + tổng badge", hổ phách "ĐÃ NHẬN Ở ĐIỂM NÀY TRƯỚC ĐÓ" (kể cả khi lượt trước ở máy
+  khác — điều hàng đợi cục bộ không thể biết), đỏ + lý do nếu server từ chối.
+
 ### 4.5 Điều kiện KHÔNG đạt → không go
 Bất kỳ điều nào chưa đạt thì **hoãn tính năng đó, không hoãn cả sự kiện** — chuyển sang quy trình giấy đã thiết kế sẵn:
 - ~~T1–T7 chưa xanh trên Supabase thật.~~ `✅` 7/7 ngày 04/09 — xem §4.2.

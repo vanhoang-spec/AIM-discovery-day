@@ -23,6 +23,8 @@ import {
 import { startScanner, feedback, holdWakeLock, IDLE_PAUSE_MS } from '@/lib/scanner';
 import { screenFor } from '@/lib/boot-state';
 import { useUpdateAvailable } from '@/lib/update-check';
+import { resultFromServer } from '@/lib/scan-verdict';
+import { STATE } from '@atl/scan-queue';
 
 const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
 
@@ -35,6 +37,8 @@ export default function ScanPage() {
   const idleTimer = useRef(null);
   const keyRef = useRef(null);
   const rosterRef = useRef([]);
+  const lastUidRef = useRef(null); // scan_uid của lượt đang hiện trên thẻ kết quả
+  const startingRef = useRef(false);
 
   const [session, setSession] = useState(null);
   const [checkpoint, setCheckpoint] = useState(null);
@@ -66,6 +70,19 @@ export default function ScanPage() {
     })();
   }, [router]);
 
+  // Sau khi server trả lời về ĐÚNG lượt quét đang hiện trên thẻ kết quả, thay
+  // "~ chờ đồng bộ" bằng phán quyết thật: tên SV, tổng badge, hay "đã nhận ở
+  // điểm này trước đó" (kể cả khi lượt trước xảy ra trên MÁY KHÁC — điều mà
+  // hàng đợi cục bộ không thể biết). Diễn tập 09/09: PG cần thấy tên ngay tại
+  // màn quét, không phải mở hàng-chờ ra dò.
+  const reflectServer = useCallback(async (uid) => {
+    if (!uid) return;
+    const item = await getQueue().get(uid).catch(() => null);
+    const mapped = resultFromServer(item);
+    if (!mapped) return;
+    setResult((prev) => (prev?.scan_uid === uid ? { ...mapped, scan_uid: uid } : prev));
+  }, []);
+
   // ---- queue heartbeat: flush, refresh roster, report health ----
   useEffect(() => {
     if (!session) return;
@@ -78,6 +95,9 @@ export default function ScanPage() {
       if (navigator.onLine && document.visibilityState === 'visible') {
         await q.flush().catch(() => {});
         setStats(await q.stats());
+        // Lượt quét lúc mất mạng sẽ được xả ở một tick sau — thẻ kết quả vẫn
+        // phải được cập nhật dù flush nào gửi nó đi.
+        await reflectServer(lastUidRef.current);
       }
       // Banner data rides sync responses; expire it locally so a device that
       // stopped syncing never shows a dead golden hour.
@@ -111,98 +131,104 @@ export default function ScanPage() {
       window.removeEventListener('offline', goOffline);
       document.removeEventListener('visibilitychange', tick);
     };
-  }, [session]);
+  }, [session, reflectServer]);
 
   // ---- the scan path: never touches the network ----
+  //
+  // Bọc TOÀN BỘ trong try/catch — diễn tập 09/09 báo "máy không phản hồi gì
+  // hết": một exception ở bất kỳ đâu sau khi giải mã (IndexedDB đầy, storage
+  // bị siết…) rơi vào promise không ai đợi và PG không thấy gì. Luật ở đây:
+  // đã giải mã ra một mã QR thì màn hình PHẢI đổi, kể cả khi máy hỏng.
   const handleCode = useCallback(async (raw) => {
     if (!checkpoint) return;
+    try {
+      // expectedEventInstance: chặn NGAY TẠI MÁY, offline, mã QR của sự kiện
+      // khác. Diễn tập 09/09 lộ lỗ hổng: thiếu tham số này, SV của điểm kia
+      // được màn XANH "sinh viên mới đăng ký" rồi mới bị server từ chối âm
+      // thầm trong hàng đợi — ngày 12/09 nghĩa là PG cho qua cổng một người
+      // chưa đăng ký điểm mình.
+      const verified = await verifyToken(raw, keyRef.current,
+        { expectedEventInstance: session.event?.id });
+      if (!verified.valid) {
+        feedback('bad');
+        setResult(verified.reason === 'wrong_event'
+          ? {
+              kind: 'bad',
+              verdict: 'MÃ CỦA ĐIỂM KHÁC',
+              name: 'Không ghi nhận được',
+              meta: 'Mã này thuộc sự kiện khác — hướng dẫn bạn ấy kiểm tra lại email đăng ký',
+            }
+          : {
+              kind: 'bad',
+              verdict: 'MÃ KHÔNG HỢP LỆ',
+              name: 'Thử tra cứu thủ công',
+              meta: 'Không đọc được mã này',
+            });
+        return;
+      }
 
-    // expectedEventInstance: chặn NGAY TẠI MÁY, offline, mã QR của sự kiện
-    // khác. Diễn tập 09/09 lộ lỗ hổng: thiếu tham số này, SV của điểm kia
-    // được màn XANH "sinh viên mới đăng ký" rồi mới bị server từ chối âm
-    // thầm trong hàng đợi — ngày 12/09 nghĩa là PG cho qua cổng một người
-    // chưa đăng ký điểm mình.
-    const verified = await verifyToken(raw, keyRef.current,
-      { expectedEventInstance: session.event?.id });
-    if (!verified.valid) {
+      const student = rosterRef.current.find((r) => r.seq === verified.studentSeq);
+      const q = getQueue();
+      const { duplicate, item } = await q.enqueue({
+        student_seq: verified.studentSeq,
+        checkpoint_id: checkpoint.id,
+        student_name: student?.name ?? null,
+      });
+
+      if (duplicate) {
+        // Amber, deliberately not red. A duplicate is one of the most common
+        // outcomes all day; treating it as an error trains PGs to ignore red.
+        // Tên ưu tiên bản server đã trả về trên chính dòng cũ — một SV vắng
+        // roster lúc quét lần đầu vẫn hiện tên thật ở lần quét lại.
+        feedback('amber');
+        setResult({
+          kind: 'amber',
+          verdict: 'ĐÃ CÓ BADGE NÀY',
+          name: item.student_name ?? student?.name ?? `SV ${verified.studentSeq}`,
+          meta: `Ghi nhận lúc ${new Date(item.client_ts).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
+            + (item.state === STATE.CONFIRMED ? ' · ✓ server đã xác nhận' : ''),
+        });
+        return;
+      }
+
+      lastUidRef.current = item.scan_uid;
+      if (!student) {
+        // Signature is valid but this device's roster predates them — a walk-in
+        // who registered minutes ago. Accept it; the server resolves the name.
+        feedback('info');
+        setResult({
+          kind: 'info',
+          verdict: 'SINH VIÊN MỚI ĐĂNG KÝ',
+          name: `Mã ${verified.studentSeq}`,
+          meta: 'Đã ghi nhận · tên sẽ hiện sau khi đồng bộ',
+          pending: true,
+          scan_uid: item.scan_uid,
+        });
+      } else {
+        feedback('ok');
+        setResult({
+          kind: 'ok',
+          verdict: 'ĐÃ GHI NHẬN',
+          name: student.name,
+          meta: `${student.mssv ?? ''} · badge thứ ${(student.badge_count ?? 0) + 1}`,
+          pending: true,
+          scan_uid: item.scan_uid,
+        });
+      }
+      setStats(await q.stats());
+      q.flush().then(() => reflectServer(item.scan_uid)).catch(() => {});
+    } catch (err) {
       feedback('bad');
-      setResult(verified.reason === 'wrong_event'
-        ? {
-            kind: 'bad',
-            verdict: 'MÃ CỦA ĐIỂM KHÁC',
-            name: 'Không ghi nhận được',
-            meta: 'Mã này thuộc sự kiện khác — hướng dẫn bạn ấy kiểm tra lại email đăng ký',
-          }
-        : {
-            kind: 'bad',
-            verdict: 'MÃ KHÔNG HỢP LỆ',
-            name: 'Thử tra cứu thủ công',
-            meta: 'Không đọc được mã này',
-          });
-      return;
-    }
-
-    const student = rosterRef.current.find((r) => r.seq === verified.studentSeq);
-    const q = getQueue();
-    const { duplicate, item } = await q.enqueue({
-      student_seq: verified.studentSeq,
-      checkpoint_id: checkpoint.id,
-      student_name: student?.name ?? null,
-    });
-
-    if (duplicate) {
-      // Amber, deliberately not red. A duplicate is one of the most common
-      // outcomes all day; treating it as an error trains PGs to ignore red.
-      feedback('amber');
       setResult({
-        kind: 'amber',
-        verdict: 'ĐÃ CÓ BADGE NÀY',
-        name: student?.name ?? `SV ${verified.studentSeq}`,
-        meta: `Ghi nhận lúc ${new Date(item.client_ts).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`,
-      });
-      return;
-    }
-
-    if (!student) {
-      // Signature is valid but this device's roster predates them — a walk-in
-      // who registered minutes ago. Accept it; the server resolves the name.
-      feedback('info');
-      setResult({
-        kind: 'info',
-        verdict: 'SINH VIÊN MỚI ĐĂNG KÝ',
-        name: `Mã ${verified.studentSeq}`,
-        meta: 'Đã ghi nhận · tên sẽ hiện sau khi đồng bộ',
-        pending: true,
-      });
-    } else {
-      feedback('ok');
-      setResult({
-        kind: 'ok',
-        verdict: 'ĐÃ GHI NHẬN',
-        name: student.name,
-        meta: `${student.mssv ?? ''} · badge thứ ${(student.badge_count ?? 0) + 1}`,
-        pending: true,
+        kind: 'bad',
+        verdict: 'MÁY GẶP LỖI KHI XỬ LÝ',
+        name: 'Lượt này CHƯA được ghi nhận',
+        meta: `${err?.message ?? err} — quét lại; nếu vẫn lỗi, dùng TRA CỨU TAY và báo giám sát`,
       });
     }
-    setStats(await q.stats());
-    getQueue().flush().catch(() => {});
-  }, [checkpoint, session]);
+  }, [checkpoint, session, reflectServer]);
 
   // ---- camera lifecycle ----
-  const startCamera = useCallback(async () => {
-    if (!videoRef.current || scannerRef.current) return;
-    setCamera('starting');
-    const s = await startScanner({
-      video: videoRef.current,
-      onCode: (code) => { handleCode(code); armIdle(); },
-      onError: () => setCamera('denied'),
-    });
-    if (!s.ok) return;
-    scannerRef.current = s;
-    setCamera('on');
-    armIdle();
-  }, [handleCode]);
-
   const stopCamera = useCallback(() => {
     scannerRef.current?.stop();
     scannerRef.current = null;
@@ -216,6 +242,32 @@ export default function ScanPage() {
     clearTimeout(idleTimer.current);
     idleTimer.current = setTimeout(stopCamera, IDLE_PAUSE_MS);
   }, [stopCamera]);
+
+  const startCamera = useCallback(async () => {
+    // startingRef chặn lần gọi thứ hai lọt vào TRONG lúc getUserMedia còn treo
+    // (scannerRef chỉ được gán sau await) — hai camera cùng chạy là một nguồn
+    // "máy phản hồi lung tung" khác của fleet BYOD.
+    if (!videoRef.current || scannerRef.current || startingRef.current) return;
+    startingRef.current = true;
+    setCamera('starting');
+    try {
+      const s = await startScanner({
+        video: videoRef.current,
+        onCode: (code) => { handleCode(code); armIdle(); },
+        // 'decoder' = bộ đọc mã hỏng (thường là trang cũ sau deploy) — cần lời
+        // hướng dẫn khác hẳn "cấp quyền camera trong Cài đặt".
+        onError: (err, reason) => setCamera(reason === 'decoder' ? 'broken' : 'denied'),
+        // iOS giết track khi khoá màn hình: về "Chạm để quét" thay vì đứng hình.
+        onTrackEnd: stopCamera,
+      });
+      if (!s.ok) return;
+      scannerRef.current = s;
+      setCamera('on');
+      armIdle();
+    } finally {
+      startingRef.current = false;
+    }
+  }, [handleCode, armIdle, stopCamera]);
 
   useEffect(() => {
     if (!checkpoint || picking) return;
@@ -321,6 +373,21 @@ export default function ScanPage() {
             <div className="alert bad" style={{ margin: 0 }}>
               <b>Không mở được camera</b>
               Vào Cài đặt → cho phép camera, rồi mở lại app. Trong lúc chờ, dùng tra cứu thủ công.
+            </div>
+          </div>
+        )}
+        {camera === 'broken' && (
+          <div className="camoff">
+            <div className="alert bad" style={{ margin: 0 }}>
+              <b>Bộ đọc mã không khởi động được</b>
+              Thường do máy đang chạy bản cũ sau khi hệ thống cập nhật. Kiểm tra mạng
+              rồi bấm tải lại — dữ liệu trên máy không mất.
+              <button
+                type="button" onClick={() => location.reload()}
+                style={{ marginTop: 10, width: '100%' }}
+              >
+                TẢI LẠI TRANG
+              </button>
             </div>
           </div>
         )}

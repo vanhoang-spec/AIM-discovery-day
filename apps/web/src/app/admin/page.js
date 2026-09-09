@@ -115,7 +115,7 @@ function Overview({ api, actor, eventId }) {
 
       <h3>Khu vực — 15 phút gần nhất</h3>
       <table className="admin-table">
-        <thead><tr><th>Zone</th><th>Lượt quét</th><th>Badge</th><th></th><th></th></tr></thead>
+        <thead><tr><th>Zone</th><th className="num">Lượt quét</th><th className="num">Badge</th><th></th><th></th></tr></thead>
         <tbody>
           {zones.map((z) => (
             <tr key={z.id}>
@@ -150,7 +150,7 @@ Nhớ báo MC và cắm biển zone.`)) {
       ) : (
         <>
           <table className="admin-table" style={{ maxWidth: 640 }}>
-            <thead><tr><th>Số badge</th><th>Số SV</th><th></th></tr></thead>
+            <thead><tr><th className="num">Số badge</th><th className="num">Số SV</th><th></th></tr></thead>
             <tbody>
               {hist.map((h) => {
                 const near = giftReq != null && h.badges >= giftReq - 2 && h.badges < giftReq;
@@ -184,7 +184,7 @@ Nhớ báo MC và cắm biển zone.`)) {
 
       <h3>Phễu quà</h3>
       <table className="admin-table">
-        <thead><tr><th>Bậc</th><th>Ngưỡng</th><th>Đủ điều kiện</th><th>Đã đổi</th><th>Kho</th></tr></thead>
+        <thead><tr><th>Bậc</th><th className="num">Ngưỡng</th><th className="num">Đủ điều kiện</th><th className="num">Đã đổi</th><th className="num">Kho</th></tr></thead>
         <tbody>
           {tiers.map((g) => {
             const left = g.stock_total - g.stock_issued;
@@ -205,7 +205,7 @@ Nhớ báo MC và cắm biển zone.`)) {
 
       <h3>Hoạt động đặc biệt</h3>
       <table className="admin-table">
-        <thead><tr><th>Tên</th><th>Đã cấp</th><th>Đang giữ</th><th>Còn</th><th>SV đủ điều kiện (thang core)</th></tr></thead>
+        <thead><tr><th>Tên</th><th className="num">Đã cấp</th><th className="num">Đang giữ</th><th className="num">Còn</th><th className="num">SV đủ điều kiện (thang core)</th></tr></thead>
         <tbody>
           {special.map((s) => (
             <tr key={s.special_activity_id}>
@@ -222,7 +222,7 @@ Nhớ báo MC và cắm biển zone.`)) {
       <h3>Thiết bị PG {devices.length === 0 && <span className="muted">(chưa máy nào nhận)</span>}</h3>
       {devices.length > 0 && (
         <table className="admin-table">
-          <thead><tr><th>Máy</th><th>PG</th><th>Zone</th><th>Hàng đợi</th><th>Pin</th><th>Sync</th></tr></thead>
+          <thead><tr><th>Máy</th><th>PG</th><th>Zone</th><th className="num">Hàng đợi</th><th className="num">Pin</th><th>Sync</th></tr></thead>
           <tbody>
             {devices.map((d) => (
               <tr key={d.device_id} className={d.sync_alert ? 'row-bad' : ''}>
@@ -438,7 +438,7 @@ function Config({ api, actor, eventId }) {
 
       <h3>Bậc quà</h3>
       <table className="admin-table">
-        <thead><tr><th>Bậc</th><th>Ngưỡng badge</th><th>Kho</th><th>Đã phát</th><th></th></tr></thead>
+        <thead><tr><th>Bậc</th><th className="num">Ngưỡng badge</th><th className="num">Kho</th><th className="num">Đã phát</th><th></th></tr></thead>
         <tbody>
           {cfg.tiers.map((g) => (
             <tr key={g.id}>
@@ -571,7 +571,7 @@ function Checkpoints({ api, actor, eventId }) {
       <table className="admin-table">
         <thead><tr>
           <th>Hoạt động</th><th>Loại</th><th>Zone</th><th>Giờ</th>
-          <th>Tính badge</th><th>Trọng số</th><th>Đang mở</th><th></th>
+          <th>Tính badge</th><th className="num">Trọng số</th><th>Đang mở</th><th></th>
         </tr></thead>
         <tbody>
           {cfg.checkpoints.map((c) => (
@@ -581,7 +581,7 @@ function Checkpoints({ api, actor, eventId }) {
               <td>{cfg.zones.find((z) => z.id === c.zone_id)?.name ?? '—'}</td>
               <td>{c.starts_at ? `${t(c.starts_at)}–${t(c.ends_at)}` : 'cả ngày'}</td>
               <td>{c.counts_toward_badges ? '✓' : '—'}</td>
-              <td>{c.counts_toward_badges ? (c.badge_weight ?? 1) : '—'}</td>
+              <td className="num">{c.counts_toward_badges ? (c.badge_weight ?? 1) : '—'}</td>
               <td>{c.is_active ? '✓' : 'tắt'}</td>
               <td className="admin-row-actions">
                 {(c.kind === 'sponsor_booth' || c.kind === 'diamond_booth') && (
@@ -806,8 +806,8 @@ function Surveys({ api, actor, eventId }) {
       {msg && <p className={msg.bad ? 'admin-err' : 'admin-ok'}>{msg.text}</p>}
       <table className="admin-table">
         <thead><tr>
-          <th>Khảo sát</th><th>Gian hàng</th><th>Câu</th><th>Trả lời</th>
-          <th>Badge tại booth</th><th>Đang mở</th><th></th>
+          <th>Khảo sát</th><th>Gian hàng</th><th className="num">Câu</th><th className="num">Trả lời</th>
+          <th className="num">Badge tại booth</th><th>Đang mở</th><th></th>
         </tr></thead>
         <tbody>
           {data.surveys.map((sv) => (
@@ -954,7 +954,7 @@ function Ops({ api, actor, eventId }) {
 
       <h3>Hoạt động đặc biệt</h3>
       <table className="admin-table">
-        <thead><tr><th>Tên</th><th>Suất</th><th>Đã cấp</th><th>Nhận đăng ký</th><th></th></tr></thead>
+        <thead><tr><th>Tên</th><th className="num">Suất</th><th className="num">Đã cấp</th><th>Nhận đăng ký</th><th></th></tr></thead>
         <tbody>
           {specials.map((a) => (
             <tr key={a.id}>
@@ -989,7 +989,7 @@ function Ops({ api, actor, eventId }) {
       <h3>Đội PG & máy quét ({dev.devices.filter((d) => !d.revoked_at).length} máy hoạt động)</h3>
       <table className="admin-table">
         <thead><tr>
-          <th>Máy</th><th>Mã nhận máy</th><th>PG</th><th>Zone</th><th>Trạng thái</th><th></th>
+          <th>Máy</th><th className="num">Mã nhận máy</th><th>PG</th><th>Zone</th><th>Trạng thái</th><th></th>
         </tr></thead>
         <tbody>
           {dev.devices.map((d) => (
