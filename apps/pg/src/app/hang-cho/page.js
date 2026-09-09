@@ -22,6 +22,17 @@ const LABEL = {
   [STATE.REJECTED]: { text: '⛔ Bị từ chối', cls: 'bad' },
 };
 
+// Diễn tập 09/09: "Bị từ chối" trần khiến PG bấm Thử lại vô vọng — máy chủ
+// nói RÕ lý do trong server_status mà UI nuốt mất. Lý do phổ biến nhất ngày
+// thật sẽ là SV của điểm kia (đăng ký HN, quét máy HCM).
+const REJECT_REASON = {
+  rejected_not_registered: 'SV chưa đăng ký sự kiện của máy này — có thể nhầm điểm. Thử lại sẽ KHÔNG giúp; kiểm tra email đăng ký của bạn ấy.',
+  rejected_unknown_student: 'Không tìm thấy SV này trên hệ thống — mã in có thể hỏng, dùng tra cứu tay.',
+  rejected_checkpoint_closed: 'Điểm quét đã bị tắt trên trang quản trị.',
+  rejected_device: 'Máy này đã bị thu hồi — báo giám sát đổi máy.',
+  rejected_out_of_scope: 'Máy không được phân quyền quét điểm này.',
+};
+
 export default function QueuePage() {
   const router = useRouter();
   const [items, setItems] = useState([]);
@@ -79,6 +90,11 @@ export default function QueuePage() {
                     {' · '}{l.text}
                     {it.attempts > 0 && ` · thử ${it.attempts} lần`}
                   </span>
+                  {it.state === STATE.REJECTED && REJECT_REASON[it.server_status] && (
+                    <span className="sub" style={{ color: '#f08b74' }}>
+                      {REJECT_REASON[it.server_status]}
+                    </span>
+                  )}
                   {it.error && <span className="sub" style={{ color: '#f08b74' }}>{it.error}</span>}
                 </span>
                 {it.state === STATE.REJECTED && (

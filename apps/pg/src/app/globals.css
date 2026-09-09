@@ -92,6 +92,11 @@ html, body {
 .result.bad    { background: var(--bad);   color: var(--bad-ink); }
 .result.info   { background: var(--info);  color: var(--info-ink); }
 .result .tilde { opacity: .8; font-weight: 400; }
+/* Diễn tập 09/09: kết quả phải nằm TRONG khung camera, không rơi xuống dưới
+   màn hình. Overlay đáy, đè cả camoff. */
+.camwrap .result-overlay {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+}
 
 /* ---- controls ---- */
 button, .btn {

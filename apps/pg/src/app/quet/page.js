@@ -115,15 +115,28 @@ export default function ScanPage() {
   const handleCode = useCallback(async (raw) => {
     if (!checkpoint) return;
 
-    const verified = await verifyToken(raw, keyRef.current);
+    // expectedEventInstance: chặn NGAY TẠI MÁY, offline, mã QR của sự kiện
+    // khác. Diễn tập 09/09 lộ lỗ hổng: thiếu tham số này, SV của điểm kia
+    // được màn XANH "sinh viên mới đăng ký" rồi mới bị server từ chối âm
+    // thầm trong hàng đợi — ngày 12/09 nghĩa là PG cho qua cổng một người
+    // chưa đăng ký điểm mình.
+    const verified = await verifyToken(raw, keyRef.current,
+      { expectedEventInstance: session.event?.id });
     if (!verified.valid) {
       feedback('bad');
-      setResult({
-        kind: 'bad',
-        verdict: 'MÃ KHÔNG HỢP LỆ',
-        name: 'Thử tra cứu thủ công',
-        meta: verified.reason === 'wrong_event' ? 'Mã của điểm khác' : 'Không đọc được mã này',
-      });
+      setResult(verified.reason === 'wrong_event'
+        ? {
+            kind: 'bad',
+            verdict: 'MÃ CỦA ĐIỂM KHÁC',
+            name: 'Không ghi nhận được',
+            meta: 'Mã này thuộc sự kiện khác — hướng dẫn bạn ấy kiểm tra lại email đăng ký',
+          }
+        : {
+            kind: 'bad',
+            verdict: 'MÃ KHÔNG HỢP LỆ',
+            name: 'Thử tra cứu thủ công',
+            meta: 'Không đọc được mã này',
+          });
       return;
     }
 
@@ -171,7 +184,7 @@ export default function ScanPage() {
     }
     setStats(await q.stats());
     getQueue().flush().catch(() => {});
-  }, [checkpoint]);
+  }, [checkpoint, session]);
 
   // ---- camera lifecycle ----
   const startCamera = useCallback(async () => {
@@ -297,18 +310,19 @@ export default function ScanPage() {
             </div>
           </div>
         )}
+        {/* Kết quả ĐÈ lên đáy camera — diễn tập 09/09: để dưới camera thì nó
+            rơi ra ngoài màn hình, PG phải cuộn mới biết vừa quét ra gì. */}
+        {result && (
+          <div className={`result result-overlay ${result.kind}`}>
+            <p className="verdict">{result.verdict}</p>
+            <p className="name">{result.name}</p>
+            <p className="meta">
+              {result.meta}
+              {result.pending && <span className="tilde"> · ~ chờ đồng bộ</span>}
+            </p>
+          </div>
+        )}
       </div>
-
-      {result && (
-        <div className={`result ${result.kind}`}>
-          <p className="verdict">{result.verdict}</p>
-          <p className="name">{result.name}</p>
-          <p className="meta">
-            {result.meta}
-            {result.pending && <span className="tilde"> · ~ chờ đồng bộ</span>}
-          </p>
-        </div>
-      )}
 
       <div className="pad row">
         <button onClick={() => router.push('/tra-cuu')}>TRA CỨU TAY</button>
