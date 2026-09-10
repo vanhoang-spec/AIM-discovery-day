@@ -1,4 +1,4 @@
-import { test, describe, beforeEach } from 'node:test';
+import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -71,6 +71,17 @@ beforeEach(async () => {
 });
 
 describe('gift ladder', () => {
+  // [0014] Bất biến rẻ nhất của cả hệ quà: kho đã trừ phải đúng bằng số dòng đã
+  // ghi, từng bậc một. Mọi đường rò đều lộ ra ở đây — kể cả đường trừ-rồi-hoàn
+  // khi hai máy tranh nhau, thứ mà không assert nào trong bài nhìn thấy.
+  afterEach(async () => {
+    const drift = await db.query(
+      `select gt.id from gift_tiers gt
+        where gt.stock_issued <> (select count(*) from gift_redemptions gr
+                                   where gr.gift_tier_id = gt.id)`);
+    assert.deepEqual(drift.rows, [], 'stock_issued phải bằng số dòng đổi quà của bậc đó');
+  });
+
   test('a student below the threshold is refused', async () => {
     const s = await student(db, 2001, 0);
     const r = await claimGift(db, s, 1);
@@ -81,7 +92,9 @@ describe('gift ladder', () => {
   });
 
   test('claiming the same tier twice yields one gift and one unit of stock', async () => {
-    const s = await student(db, 2002, 3);
+    // Đúng 1 badge: bậc 1 là bậc cao nhất em này với tới, nên không vướng luật
+    // chặn phát lùi của 0014. Bài này canh chuyện khác — bấm lại phải an toàn.
+    const s = await student(db, 2002, 1);
 
     const first = await claimGift(db, s, 1);
     assert.equal(first.result, 'ok');
@@ -101,15 +114,28 @@ describe('gift ladder', () => {
     assert.equal(rows.rows[0].c, 1);
   });
 
-  test('cumulative mode hands over every tier the student has passed', async () => {
+  test('bậc cao nhất cấp kèm mọi bậc thấp — một lượt, một lần trừ kho mỗi bậc', async () => {
     const s = await student(db, 2003, 3);
-    assert.equal((await claimGift(db, s, 1)).result, 'ok');
-    assert.equal((await claimGift(db, s, 2)).result, 'ok');
+
+    // [0014] Bấm bậc thấp trong khi bậc cao còn trên bàn là một cú bấm nhầm:
+    // ở ATL nó nghĩa là đưa chiếc túi ra rồi lát nữa đưa thêm một chiếc nữa.
+    assert.equal((await claimGift(db, s, 1)).result, 'claim_top_tier_first');
+    assert.equal((await claimGift(db, s, 2)).result, 'claim_top_tier_first');
+
     assert.equal((await claimGift(db, s, 3)).result, 'ok');
 
     const n = await db.query(
       `select count(*)::int as c from gift_redemptions where student_id = $1`, [s]);
-    assert.equal(n.rows[0].c, 3);
+    assert.equal(n.rows[0].c, 3, 'một lượt phát ghi đủ ba dòng');
+
+    const st = await db.query(
+      `select stock_issued from gift_tiers where event_id = 1 order by tier`);
+    assert.deepEqual(st.rows.map((r) => r.stock_issued), [1, 1, 1],
+      'đúng một đơn vị mỗi món rời bàn — không hơn, không kém');
+
+    // Bấm lại bậc nào cũng phải là câu trả lời của người, không phải mã lỗi.
+    assert.equal((await claimGift(db, s, 3)).result, 'already_claimed');
+    assert.equal((await claimGift(db, s, 1)).result, 'already_claimed');
   });
 
   test('highest_only mode hands over exactly one gift, and it must be the best one', async () => {
@@ -140,6 +166,12 @@ describe('gift ladder', () => {
     const stock = await db.query(`select stock_issued, stock_total from gift_tiers where id = 3`);
     assert.equal(stock.rows[0].stock_issued, 3);
     assert.ok(stock.rows[0].stock_issued <= stock.rows[0].stock_total);
+
+    // [0014] Ba lượt thành công ấy cũng ăn ba đơn vị của hai bậc dưới — bảy
+    // lượt hết kho thì không, vì chúng dừng trước khi tới đoạn cấp kèm.
+    const lower = await db.query(
+      `select stock_issued from gift_tiers where id in (1, 2) order by tier`);
+    assert.deepEqual(lower.rows.map((r) => r.stock_issued), [3, 3]);
   });
 
   test('the database itself refuses to oversell, even by hand', async () => {
@@ -164,11 +196,100 @@ describe('gift ladder', () => {
     await db.query(`update gift_tiers set required_badges = 4 where id = 2`);
     const still = await db.query(
       `select count(*)::int as c from gift_redemptions where student_id = $1`, [s]);
-    assert.equal(still.rows[0].c, 1);
+    // Hai dòng: bậc 2 em bấm, và bậc 1 được cấp kèm theo 0014. Cả hai đều
+    // không bị đụng tới khi ngưỡng tăng.
+    assert.equal(still.rows[0].c, 2);
 
     // But they cannot now claim a tier they no longer qualify for.
     const s2 = await student(db, 2201, 2);
     assert.equal((await claimGift(db, s2, 2)).result, 'not_eligible');
+  });
+
+  // --------------------------------------------------------------------------
+  // Quy định của AIM, 10/09 — nói bằng đúng lời của cái bàn quà.
+  //
+  // Fixture ba bậc ở trên là bài toán tổng quát. Cấu hình thật ngày 12/09 chỉ có
+  // hai bậc và hai vật thể: một chồng TÚI, một thùng HỘP BÚT.
+  // --------------------------------------------------------------------------
+
+  const aimTiers = () => db.exec(`
+    update gift_tiers set is_active = false where id = 3;
+    update gift_tiers set required_badges = 7, gift_name = 'Túi quà',
+                          stock_total = 5 where id = 1;
+    update gift_tiers set required_badges = 9, gift_name = 'Hộp bút Thiên Long',
+                          stock_total = 5 where id = 2;
+  `);
+
+  test('7 badge nhận túi; đủ 9 quay lại chỉ nhận THÊM hộp bút', async () => {
+    await aimTiers();
+    const s = await student(db, 2300, 7);
+
+    assert.equal((await claimGift(db, s, 1)).result, 'ok');
+    assert.equal((await claimGift(db, s, 2)).result, 'not_eligible');
+
+    await db.query(`update registrations set badge_count = 9 where student_id = $1`, [s]);
+    assert.equal((await claimGift(db, s, 2)).result, 'ok');
+
+    const st = await db.query(
+      `select stock_issued from gift_tiers where id in (1, 2) order by tier`);
+    assert.deepEqual(st.rows.map((r) => r.stock_issued), [1, 1],
+      'PG không đổi lại túi: đúng một túi và một hộp bút rời bàn');
+  });
+
+  test('đủ 9 badge ngay từ đầu: một lượt phát, cả túi lẫn hộp bút', async () => {
+    await aimTiers();
+    const s = await student(db, 2301, 9);
+
+    assert.equal((await claimGift(db, s, 1)).result, 'claim_top_tier_first',
+      'không làm giao dịch mức 7 riêng — mức 9 đã gồm chiếc túi');
+    assert.equal((await claimGift(db, s, 2)).result, 'ok');
+
+    const rows = await db.query(
+      `select gift_tier_id from gift_redemptions
+        where student_id = $1 order by gift_tier_id`, [s]);
+    assert.deepEqual(rows.rows.map((r) => r.gift_tier_id), [1, 2],
+      'một cú bấm, hai dòng — sổ sách khớp với hai món trên tay SV');
+  });
+
+  test('hết túi vẫn trao được hộp bút, và ngược lại', async () => {
+    await aimTiers();
+    await db.query(`update gift_tiers set stock_total = 0 where id = 1`);
+
+    const a = await student(db, 2302, 9);
+    assert.equal((await claimGift(db, a, 2)).result, 'ok', 'hết túi không được chặn hộp bút');
+    const owed = await db.query(
+      `select count(*)::int as c from gift_redemptions where student_id = $1`, [a]);
+    assert.equal(owed.rows[0].c, 1, 'chỉ ghi hộp bút — em này đang bị nợ một chiếc túi');
+
+    // BTC nạp thêm túi giữa ngày: em quay lại lấy được ngay, luật chặn phát lùi
+    // đã im vì bậc 9 đã nhận.
+    await db.query(`update gift_tiers set stock_total = 2 where id = 1`);
+    assert.equal((await claimGift(db, a, 1)).result, 'ok');
+
+    // Chiều ngược lại: hết hộp bút thì SV 9 badge vẫn phải nhận được túi.
+    await db.query(`update gift_tiers set stock_total = stock_issued where id = 2`);
+    const b = await student(db, 2303, 9);
+    assert.equal((await claimGift(db, b, 2)).result, 'out_of_stock');
+    assert.equal((await claimGift(db, b, 1)).result, 'ok');
+  });
+
+  test('vé giấy đi thẳng: không cấp kèm, không bị chặn phát lùi', async () => {
+    await aimTiers();
+    const s = await student(db, 2304, 9);
+
+    // Sổ giấy ghi hai tấm vé riêng. Giám sát viên nhập vé mức 9 trước — thứ tự
+    // người ta hay làm — rồi tới vé mức 7. Cả hai đều phải vào được, nếu không
+    // một cuốn sổ đúng bị màn Đối soát báo là "vé giấy trùng".
+    const paper = (tier) => db.query(
+      `select * from claim_gift_tier(1::smallint, $1, $2, 'paper:admin', 'reconciliation', true)`,
+      [s, tier]).then((r) => r.rows[0]);
+
+    assert.equal((await paper(2)).result, 'ok');
+    const after = await db.query(
+      `select count(*)::int as c from gift_redemptions where student_id = $1`, [s]);
+    assert.equal(after.rows[0].c, 1, 'vé giấy chỉ ghi đúng món ghi trên tấm vé');
+
+    assert.equal((await paper(1)).result, 'ok', 'tấm vé thật không bị báo là vé trùng');
   });
 });
 

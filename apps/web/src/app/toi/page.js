@@ -27,9 +27,21 @@ function hhmm(iso) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/**
+ * Tên quà ở một mốc = mọi món tính tới mốc đó.
+ *
+ * [0014] Từ 10/09 mỗi bậc mang tên đúng MỘT món nó cộng thêm ("Túi quà", rồi
+ * "Hộp bút Thiên Long"), vì đó là cách bàn quà thật vận hành và là cách hệ
+ * thống đếm kho. Nhưng sinh viên đọc theo mốc badge chứ không đọc theo bậc:
+ * "9 badge" với các em nghĩa là túi + bút. Ghép tên lại ở đây, ngay chỗ đọc.
+ */
+const giftAt = (tiers, i) => tiers.slice(0, i + 1).map((t) => t.name).join(' + ');
+
 function Progress({ p }) {
   if (!p) return null;
-  const next = p.tiers.find((t) => !t.redeemed && t.stock !== 'out' && p.badge_count < t.required);
+  const nextIdx = p.tiers.findIndex(
+    (t) => !t.redeemed && t.stock !== 'out' && p.badge_count < t.required);
+  const next = nextIdx === -1 ? null : p.tiers[nextIdx];
 
   return (
     <section className="progress" aria-label="Tiến độ badge">
@@ -41,27 +53,36 @@ function Progress({ p }) {
 
       {next && (
         <p className="progress-next">
-          Còn <b>{next.required - p.badge_count} badge</b> nữa là đổi được {next.name}
+          Còn <b>{next.required - p.badge_count} badge</b> nữa là đổi được{' '}
+          {giftAt(p.tiers, nextIdx)}
           {next.remaining != null ? ` (còn ${next.remaining} suất)` : ''}.
         </p>
       )}
 
       <ul className="tier-list">
-        {p.tiers.map((t) => {
+        {p.tiers.map((t, i) => {
           const state = t.redeemed ? 'done'
             : t.stock === 'out' ? 'out'
             : p.badge_count >= t.required ? 'ready' : 'locked';
+          // Đã cầm về phần của mốc dưới thì lên mốc này chỉ nhận thêm phần
+          // chênh — nói thẳng, để không ai xếp hàng lần nữa vì tưởng được đổi
+          // lại cả bộ.
+          const gotLower = p.tiers.slice(0, i).some((x) => x.redeemed);
           return (
             <li key={t.tier} className={`tier tier-${state}`}>
               <span className="tier-req">{t.required}</span>
-              <span className="tier-name">{t.name}</span>
+              <span className="tier-name">{giftAt(p.tiers, i)}</span>
               <span className="tier-state">
                 {state === 'done' && 'Đã nhận'}
-                {state === 'ready' && (t.remaining != null
-                  ? `Đủ điều kiện — còn ${t.remaining} suất, tới quầy quà`
-                  : 'Đủ điều kiện — tới quầy quà')}
+                {state === 'ready' && (gotLower
+                  ? `Đủ điều kiện — tới quầy nhận thêm ${t.name}`
+                  : t.remaining != null
+                    ? `Đủ điều kiện — còn ${t.remaining} suất, tới quầy quà`
+                    : 'Đủ điều kiện — tới quầy quà')}
                 {state === 'out' && 'ĐÃ HẾT QUÀ — không cần tới quầy nữa'}
-                {state === 'locked' && `Còn thiếu ${t.required - p.badge_count}`}
+                {state === 'locked' && (gotLower
+                  ? `Còn thiếu ${t.required - p.badge_count} — sẽ nhận thêm ${t.name}`
+                  : `Còn thiếu ${t.required - p.badge_count}`)}
               </span>
             </li>
           );

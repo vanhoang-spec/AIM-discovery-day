@@ -459,7 +459,11 @@ function Config({ api, actor, eventId }) {
               {/* Ô nhập tại chỗ thay hai prompt() nối nhau: Chrome nuốt hộp
                   thoại thứ hai khi người dùng tick "Ngăn trang tạo thêm hộp
                   thoại", nên ô Kho biến mất không dấu vết (AIM báo 10/09). */}
-              <td>{g.tier} — {g.gift_name}</td>
+              <td>
+                {g.tier} —{' '}
+                <input className="admin-input" id={`gt-name-${g.id}`} type="text"
+                       defaultValue={g.gift_name} style={{ maxWidth: 240 }} />
+              </td>
               <td className="num">
                 <input className="admin-input" id={`gt-req-${g.id}`} type="number" min="0"
                        defaultValue={g.required_badges}
@@ -474,6 +478,7 @@ function Config({ api, actor, eventId }) {
               <td>
                 <button type="button" className="admin-btn" onClick={() => {
                   patch({ type: 'tier', tier_id: g.id,
+                          gift_name: document.getElementById(`gt-name-${g.id}`).value.trim(),
                           required_badges: Number(document.getElementById(`gt-req-${g.id}`).value),
                           stock_total: Number(document.getElementById(`gt-stock-${g.id}`).value) });
                 }}>Lưu</button>
@@ -506,9 +511,16 @@ function Config({ api, actor, eventId }) {
         }}>+ Tạo bậc</button>
       </div>
       <p className="muted">
-        Sửa <b>ngưỡng</b> hoặc <b>kho</b> ngay trong bảng rồi bấm <b>Lưu</b> ở cuối dòng.
+        Sửa <b>tên</b>, <b>ngưỡng</b> hoặc <b>kho</b> ngay trong bảng rồi bấm <b>Lưu</b> ở cuối dòng.
         Tăng ngưỡng sẽ hiện trước số SV bị ảnh hưởng để xác nhận. Kho không đặt được thấp hơn
         số đã phát. Quyền lợi đã cấp không bao giờ bị thu hồi.
+      </p>
+      <p className="muted">
+        <b>Mỗi bậc mang tên đúng MỘT món nó cộng thêm</b> — bậc 1 “Túi quà”, bậc 2 “Hộp bút
+        Thiên Long”. Kho bậc 1 là tổng số túi, kho bậc 2 là tổng số hộp bút. Phát bậc cao sẽ tự
+        trừ luôn kho bậc dưới nếu SV chưa nhận, nên <b>Đã phát</b> của bậc 1 phải luôn ≥ bậc 2.
+        Máy PG và app SV tự ghép tên các bậc lại (“Túi quà + Hộp bút Thiên Long”), vì vậy đừng
+        đặt tên bậc trên gồm cả món của bậc dưới.
       </p>
 
       <h3>Nhân bản sự kiện (Grand Finale / mùa sau)</h3>

@@ -72,6 +72,14 @@ export async function POST(request) {
         already_claimed: 'SV này ĐÃ có bậc này trong hệ thống — vé giấy trùng, kiểm tra lại sổ',
         out_of_stock: 'Kho bậc này đã hết trên hệ thống — số giấy và số máy đang lệch, cần đối chiếu tay',
         not_eligible: 'SV không đủ badge cho bậc này — ghi chú lại, có thể đã phát nhầm tại quầy',
+        // Hai mã dưới đây KHÔNG xảy ra trên đường vé giấy — 0014 tắt cả cascade
+        // lẫn luật chặn phát lùi khi was_offline, đúng vì mỗi tấm vé là một món
+        // đã trao tận tay chứ không phải một yêu cầu chờ xét. Vẫn dịch sẵn:
+        // một mã tiếng Anh lọt ra màn chốt sổ lúc 22:00 là thứ không ai đoán nổi.
+        claim_top_tier_first: 'Hệ thống yêu cầu phát bậc cao nhất trước — nhập vé bậc cao rồi nhập lại vé này',
+        not_highest_tier: 'Sự kiện đang ở chế độ "bậc cao nhất" — chỉ nhập được bậc cao nhất SV đạt',
+        unknown_tier: 'Bậc quà không tồn tại hoặc đã tắt',
+        not_registered: 'SV chưa đăng ký sự kiện này',
       }[r.result] ?? r.result;
       return Response.json({ error: msg, result: r.result }, { status: 409 });
     }

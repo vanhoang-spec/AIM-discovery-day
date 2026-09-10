@@ -1,6 +1,11 @@
 /**
  * POST /api/pg/gift — the gift counter (AC18–AC20 UI side).
  *
+ * Từ 10/09 route này còn giữ hai luật mà giao diện không giữ nổi: chỉ máy đang
+ * đứng ở Quầy đổi quà mới gọi được (403 cho mọi máy khác), và câu trả lời nói
+ * đúng NHỮNG MÓN vừa rời bàn — không phải cái nút PG đã bấm. Xem hai khối
+ * `desk` và `granted` bên dưới.
+ *
  * ONLINE-ONLY by design, unlike scanning. A badge award is idempotent and
  * can queue; handing over a physical gift is not — the stock decrement and
  * the dedup both live in claim_gift_tier's single transaction, and two
@@ -35,6 +40,25 @@ export async function POST(request) {
   )).rows[0];
   if (!dev) return Response.json({ error: 'Thiết bị không hợp lệ' }, { status: 401 });
 
+  // [10/09] "Siết luôn đi, chỉ máy quầy quà mới trao được" — và siết ở ĐÂY,
+  // không phải chỉ ở giao diện. canOpenGiftDesk() trên máy chỉ giấu cái nút;
+  // một token PG bất kỳ vẫn POST thẳng vào đây được. Quy ước "đúng một dòng =
+  // vị trí hiện tại" giống /api/pg/state, nên BTC điều chuyển bằng đúng cái ô
+  // đã dùng cho mọi máy khác và ~20 giây sau máy nhận vị trí mới.
+  const desk = await db.query(
+    `select c.kind
+       from pg_device_checkpoints dc
+       join checkpoints c on c.id = dc.checkpoint_id and c.event_id = dc.event_id
+      where dc.device_id = $1 and dc.event_id = $2 and c.is_active`,
+    [dev.device_id, dev.event_id],
+  );
+  if (desk.rows.length !== 1 || desk.rows[0].kind !== 'gift_counter') {
+    return Response.json(
+      { error: 'Máy này không phải Quầy đổi quà', result: 'not_gift_desk' },
+      { status: 403 },
+    );
+  }
+
   const seq = Number(body.student_seq);
   if (!Number.isInteger(seq) || seq <= 0) {
     return Response.json({ error: 'Thiếu mã sinh viên' }, { status: 400 });
@@ -52,9 +76,23 @@ export async function POST(request) {
     return Response.json({ error: 'SV chưa đăng ký sự kiện này' }, { status: 404 });
   }
 
+  // [0014] Ảnh chụp TRƯỚC khi phát. Từ 0014 một lượt phát bậc cao còn cấp kèm
+  // mọi bậc thấp SV đã đủ mà chưa nhận, trong khi claim_gift_tier chỉ trả về
+  // tên của bậc được bấm. Không có ảnh chụp này thì màn PG báo "ĐÃ PHÁT — Hộp
+  // bút" đúng lúc hệ thống vừa trừ cả một chiếc túi, và dòng túi lập tức hiện
+  // "✓ đã nhận" — đúng tín hiệu bảo PG ĐỪNG đưa túi. SV cầm mỗi hộp bút ra về,
+  // sổ sách ghi đã nhận cả hai. Diff hai ảnh là cách duy nhất nói thật.
+  let before = null;
+
   if (body.action === 'redeem') {
     const tierId = Number(body.gift_tier_id);
     if (!tierId) return Response.json({ error: 'Thiếu bậc quà' }, { status: 400 });
+
+    before = new Set((await db.query(
+      `select gift_tier_id from gift_redemptions where event_id = $1 and student_id = $2`,
+      [dev.event_id, student.id],
+    )).rows.map((x) => x.gift_tier_id));
+
     const r = (await db.query(
       `select * from claim_gift_tier($1::smallint, $2::bigint, $3::integer, $4, $5)`,
       [dev.event_id, student.id, tierId, dev.staff_name ?? null, String(dev.device_id)],
@@ -64,6 +102,8 @@ export async function POST(request) {
         already_claimed: 'SV đã nhận bậc này rồi',
         not_eligible: 'Chưa đủ badge cho bậc này',
         out_of_stock: 'ĐÃ HẾT quà bậc này',
+        // [0014] Chế độ cộng dồn: bấm bậc thấp khi bậc cao còn trên bàn.
+        claim_top_tier_first: 'SV đã đủ mức cao hơn — bấm mức cao nhất (đã gồm mức dưới)',
         not_highest_tier: 'Chế độ "bậc cao nhất": phải phát bậc cao nhất SV đạt',
         not_registered: 'SV chưa đăng ký',
         unknown_tier: 'Bậc quà không tồn tại',
@@ -105,6 +145,15 @@ export async function POST(request) {
   )).rows[0];
 
   const redeemedBy = new Map(redemptions.rows.map((x) => [x.gift_tier_id, x.redeemed_at]));
+
+  // Đúng những món vừa rời bàn trong lượt này — đọc từ dòng đã ghi, không phải
+  // từ cái nút PG đã bấm.
+  const granted = before
+    ? tiers.rows
+      .filter((t2) => !before.has(t2.id) && redeemedBy.has(t2.id))
+      .map((t2) => ({ tier: t2.tier, name: t2.gift_name }))
+    : undefined;
+
   return Response.json({
     student: {
       seq,
@@ -128,5 +177,6 @@ export async function POST(request) {
       eligible: fresh.badge_count >= t2.required_badges,
     })),
     redeemed: body.action === 'redeem' ? true : undefined,
+    granted,
   });
 }

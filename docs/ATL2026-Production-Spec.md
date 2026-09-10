@@ -173,11 +173,27 @@ Nền tảng: `✅` schema `0004_registration.sql` · `✅` form `/dang-ky` · `
   **Kênh báo SV đã đổi so với v1.0: KHÔNG banner trong app SV** — bắn thông báo cho 2.000 người để phát 80 badge tạo đúng cơn dồn cục mà tính năng này sinh ra để giải quyết. Kênh: MC + biển zone + banner trên máy PG (đi ké response sync, không tạo nhịp mạng mới) + PG đọc một câu khi quét.
 
 ### 3.5 Quầy đổi quà (PG-APP chế độ quầy + SV-APP)
-Nền tảng: `✅` schema `0003_rewards.sql` + 18 test · `⬜` giao diện
+Nền tảng: `✅` schema `0003_rewards.sql` + `0014_gift_cascade.sql`, 11 test · `✅` giao diện
+
+**Quy định của AIM, chốt 10/09 — MỖI BẬC = ĐÚNG MỘT MÓN NÓ CỘNG THÊM.** Bàn quà có đúng hai vật thể: một chồng **túi quà** và một thùng **hộp bút Thiên Long**. 7 badge → túi. 9 badge → túi **+** hộp bút, tức hộp bút *cộng thêm* chứ không thay túi. Ai đã lấy túi ở mức 7 rồi đủ 9 thì chỉ nhận thêm hộp bút; ai đủ 9 ngay từ đầu thì nhận một lần cả hai và **không** làm thêm giao dịch mức 7. Bất biến: **mỗi SV tối đa 1 túi và tối đa 1 hộp bút, đi đường nào cũng vậy.**
+
+Vì thế bậc 1 tên là "Túi quà" (kho = tổng số túi), bậc 2 tên là "Hộp bút Thiên Long" (kho = tổng số hộp bút), và `claim_gift_tier` phát bậc cao thì **cấp kèm** mọi bậc thấp SV đã đủ mà chưa nhận — trừ đủ hai kho, ghi đủ hai dòng. Chế độ `cumulative` cũ coi mỗi bậc là một món độc lập nên (a) SV 9 badge bấm cả hai nút là cầm về **hai túi**, và (b) phát mức 9 **không trừ kho mức 7** dù một chiếc túi thật vừa rời bàn — cấu hình HN 400/200 cho phép phát tới 600 túi từ một chồng 400 chiếc, và không có cách nào thấy được tại chỗ.
+
+Ba hệ quả phải giữ cùng nhau, mỗi cái có test riêng:
+
+- **Không phát lùi.** Bấm bậc thấp khi bậc cao còn kho và SV đã đủ → `claim_top_tier_first`. Nhưng nếu bậc cao **hết kho** thì luật im: SV 9 badge vẫn phải nhận được chiếc túi.
+- **Bấm lại vẫn an toàn.** "Đã nhận bậc này chưa" trả lời **trước** mọi luật khác, nếu không luật chặn phát lùi sẽ biến một lần bấm lại (mạng chập chờn) thành lỗi đỏ. Đồng thời sửa một lỗi có sẵn từ 0003: bấm lại lúc kho đã cạn trước đây trả "ĐÃ HẾT quà bậc này".
+- **Vé giấy đi thẳng.** `p_was_offline = true` tắt cả cascade lẫn luật chặn phát lùi: mỗi tấm vé là một món đã trao tận tay, không phải một yêu cầu chờ xét. Nếu không, nhập vé mức 9 trước sẽ tự sinh dòng mức 7 và tấm vé mức 7 thật bị báo "vé giấy trùng" — biến một cuốn sổ đúng thành lỗi.
+
+**Chỉ được có đúng hai bậc đang bật.** Hàm viết tổng quát cho N bậc, nhưng bậc thứ ba mở lại hai chuyện: khoá kho phải tăng dần theo `tier` (đã làm, xem `perform ... for update` trong 0014) và SV đủ bậc 3 sẽ bị chặn lùi ở cả bậc 1 lẫn 2 cho tới khi bậc 3 hết kho — đúng luật nhưng là một bức tường đỏ ở đầu giờ.
+
+**Bất biến đọc bằng mắt trong ngày:** ở tab Tổng quan, `Đã phát` của bậc 1 phải **luôn ≥** bậc 2. Ai đang bị nợ một chiếc túi (hết túi giữa chừng) tra bằng: SV có dòng bậc 2 mà không có dòng bậc 1 — nạp thêm kho rồi bấm mức 7 cho từng em.
 
 - **AC18** `⬜` — Given SV đủ điều kiện 1 bậc quà, When mở app trước khi tới quầy, Then thấy rõ "bạn còn thiếu gì" — cập nhật theo badge thật, không phải số tĩnh. Màn này loại ~25% người không đủ điều kiện **trước khi** họ xếp hàng.
 - **AC19** `🟨` — Given 1 bậc quà đã hết kho, When bất kỳ ai submit đổi quà bậc đó, Then **request bị từ chối ở tầng DB** (`UPDATE ... WHERE stock_issued < stock_total` + CHECK), và SV-APP hiện "ĐÃ HẾT" ngay khi cạn. *(ràng buộc DB `✅`; thiếu giao diện)*
 - **AC20** `🟨` — Given 2 quầy thao tác đổi quà cùng lúc cho cùng 1 SV cùng 1 bậc, When cả hai submit gần như đồng thời, Then chỉ **đúng 1** giao dịch thành công. *(unique index + hoàn kho khi conflict `✅`; test tranh chấp đa kết nối xem T2)*
+- **AC20b** `✅` **— Chỉ máy quầy quà mới trao được** (AIM 10/09: "siết luôn đi"). Given một máy PG đang đứng ở booth, When gọi `POST /api/pg/gift`, Then **403** — không phải chỉ giấu cái nút. Điểm được phân công đọc từ `pg_device_checkpoints` theo đúng quy ước "một dòng = vị trí hiện tại" của `/api/pg/state`, nên BTC điều chuyển bằng đúng cái ô đã dùng cho mọi máy khác.
+- **AC20c** `✅` **— Màn hình nói đúng món vừa rời bàn.** `claim_gift_tier` chỉ trả tên bậc *được bấm*, nên route chụp tập bậc đã nhận **trước** khi gọi rồi diff với tập sau, trả `granted[]`. Không có nó, một lượt phát mức 9 báo "ĐÃ PHÁT — Hộp bút" đúng lúc hệ thống vừa trừ cả một chiếc túi, và dòng túi lập tức hiện "✓ đã nhận" — đúng tín hiệu bảo PG **đừng** đưa túi: SV cầm mỗi hộp bút ra về, sổ sách ghi đã nhận cả hai. Màn `/qua` từ đó chỉ còn **một** thẻ quyết định và **một** nút, danh sách món phải cầm lên in to nhất (`lib/gift-plan.js`, 12 test).
 - **AC21** `🟨` — Given mất mạng tại quầy quà, Then /qua hiện cảnh báo chuyển hẳn sang luồng giấy: giám sát + **vòng tay giấy phân màu theo bậc** (không phải dấu mực — mực nhoè sau 20 phút mồ hôi), nhập lại qua màn Đối soát (AC26).
   *Quyết định có chủ đích: KHÔNG build hàng đợi offline cho phát quà. App ghi nhận offline tạo cảm giác an toàn giả — hai quầy offline vẫn có thể cùng phát cuốn sổ cuối; vật kiểm soát thật là vòng tay. PIN supervisor để bật chế độ cũng bỏ theo — chế độ giấy không cần app cho phép.*
 

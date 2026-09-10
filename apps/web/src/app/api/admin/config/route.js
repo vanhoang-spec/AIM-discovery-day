@@ -169,7 +169,12 @@ export async function PATCH(request) {
 
     const req = body.required_badges != null ? Number(body.required_badges) : cur.required_badges;
     const stock = body.stock_total != null ? Number(body.stock_total) : cur.stock_total;
-    if (!Number.isInteger(req) || req < 0 || !Number.isInteger(stock) || stock < 0) {
+    // [0014] Tên bậc nay là tên MỘT MÓN THẬT trên bàn ("Túi quà", "Hộp bút
+    // Thiên Long"), và cả máy PG lẫn app SV ghép các tên đó lại để nói cho
+    // người nghe. Trước đây tên chỉ đặt được lúc tạo bậc — sửa một chữ phải
+    // vào SQL Editor, giữa ngày sự kiện.
+    const name = body.gift_name != null ? String(body.gift_name).trim() : cur.gift_name;
+    if (!Number.isInteger(req) || req < 0 || !Number.isInteger(stock) || stock < 0 || !name) {
       return Response.json({ error: 'Giá trị không hợp lệ' }, { status: 400 });
     }
     if (stock < cur.stock_issued) {
@@ -192,15 +197,18 @@ export async function PATCH(request) {
       }
     }
     await db.query(
-      `update gift_tiers set required_badges = $3, stock_total = $4
-        where id = $1 and event_id = $2`, [tierId, eventId, req, stock]);
+      `update gift_tiers set required_badges = $3, stock_total = $4, gift_name = $5
+        where id = $1 and event_id = $2`, [tierId, eventId, req, stock, name]);
     await db.query(
       `insert into audit_log (event_id, actor_type, actor_id, action, target_type, target_id,
                               before_state, after_state)
        values ($1, 'super_admin', $2, 'set_gift_tier', 'gift_tier', $3::text, $4::jsonb, $5::jsonb)`,
       [eventId, actor, String(tierId),
-       JSON.stringify({ required_badges: cur.required_badges, stock_total: cur.stock_total }),
-       JSON.stringify({ required_badges: req, stock_total: stock })]);
+       JSON.stringify({
+         required_badges: cur.required_badges, stock_total: cur.stock_total,
+         gift_name: cur.gift_name,
+       }),
+       JSON.stringify({ required_badges: req, stock_total: stock, gift_name: name })]);
     return Response.json({ ok: true });
   }
 

@@ -11,8 +11,18 @@
  * pretending — an optimistic UI at a gift counter is how one notebook gets
  * handed to two students.
  *
- * Flow: scan QR or type (roster search, offline) → server check → entitlement
- * card → tap the tier being handed over → server confirms → green card.
+ * Flow: scan QR or type (roster search, offline) → server check → MỘT thẻ
+ * quyết định → một nút xác nhận → pop-up giữa màn hình kể đúng món đã trao.
+ *
+ * Vì sao chỉ một nút (AIM 10/09): bàn quà có đúng hai vật thể — một chồng TÚI
+ * và một thùng HỘP BÚT — và mức 9 là "túi + bút" chứ không thay thế túi. Danh
+ * sách từng bậc kèm một nút PHÁT riêng bắt PG phải tự suy ra phải cầm món nào
+ * lên, giữa một hàng dài. Hai kiểu nhầm sinh ra từ đó đều tốn đồ thật: bấm cả
+ * hai nút là đưa ra hai chiếc túi, còn với SV đã lấy túi từ sáng thì không gì
+ * trên màn hình nói rằng lần này chỉ đưa hộp bút. Nay máy tính sẵn một hành
+ * động kèm DANH SÁCH MÓN PHẢI CẦM LÊN (xem `lib/gift-plan.js`), và pop-up sau
+ * khi phát đọc từ `granted` do server trả — tức là từ những dòng đã thật sự ghi
+ * vào sổ, không phải từ cái nút vừa bấm.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -21,11 +31,20 @@ import { verifyToken, importKey } from '@atl/qr-token';
 import { searchRoster } from '@atl/vn-text';
 import { getRoster, getSession, getActiveCheckpoint } from '@/lib/session';
 import { canOpenGiftDesk } from '@/lib/device-role';
+import { giftPlan, itemNames } from '@/lib/gift-plan';
 import { startScanner, feedback, holdWakeLock } from '@/lib/scanner';
 
 const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
 
 const maskPhone = (p) => (p ? p.replace(/^(\d{3})\d{4}(\d{2,})$/, '$1····$2') : null);
+
+const hhmm = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
 
 export default function GiftCounterPage() {
   const router = useRouter();
@@ -36,8 +55,9 @@ export default function GiftCounterPage() {
   const [roster, setRoster] = useState([]);
   const [card, setCard] = useState(null);      // entitlement card from server
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-  const [flash, setFlash] = useState(null);    // {name, tier} after a redeem
+  // Một mô hình duy nhất cho mọi thứ cần PG dừng lại và đọc: {kind, title,
+  // lines, done}. `done` = xong lượt này, đóng lại là sang người tiếp theo.
+  const [modal, setModal] = useState(null);
   const [camera, setCamera] = useState('off');
   const videoRef = useRef(null);
   const scannerRef = useRef(null);
@@ -79,22 +99,23 @@ export default function GiftCounterPage() {
   }, []);
 
   const check = useCallback(async (seq) => {
-    setBusy(true); setErr(null); setFlash(null);
+    setBusy(true); setModal(null);
     try {
       setCard(await api({ action: 'check', student_seq: seq }));
       setQuery('');
       feedback('ok');
     } catch (e) {
       feedback('bad');
-      setErr(e.message);
+      setModal({ kind: 'bad', title: 'KHÔNG TRA ĐƯỢC', lines: [e.message] });
     } finally {
       setBusy(false);
     }
   }, [api]);
 
   const redeem = async (tier) => {
-    if (busy) return;
-    setBusy(true); setErr(null);
+    if (busy || !tier) return;
+    setBusy(true);
+    const who = card?.student?.full_name ?? '';
     try {
       const d = await api({
         action: 'redeem',
@@ -103,14 +124,24 @@ export default function GiftCounterPage() {
       });
       feedback('ok');
       setCard(d);
-      setFlash({ name: tier.name, tier: tier.tier });
+      // Nguồn sự thật là `granted` — những dòng server vừa ghi. Nếu vì lý do gì
+      // đó server không trả, thà nói tên bậc vừa bấm còn hơn nói bừa cả hai.
+      const items = d.granted?.length ? d.granted.map((g) => g.name) : [tier.name];
+      setModal({ kind: 'ok', title: 'ĐÃ PHÁT QUÀ', who, items, done: true });
     } catch (e) {
       feedback('bad');
-      setErr(e.message);
+      setModal({ kind: 'bad', title: 'CHƯA PHÁT ĐƯỢC', lines: [e.message], who });
     } finally {
       setBusy(false);
     }
   };
+
+  const nextPerson = () => { setModal(null); setCard(null); setQuery(''); };
+
+  const results = useMemo(
+    () => (query.trim() ? searchRoster(roster, query, { limit: 6 }).results : []),
+    [roster, query],
+  );
 
   // ---- scan path ----
   const startCamera = useCallback(async () => {
@@ -120,7 +151,11 @@ export default function GiftCounterPage() {
       video: videoRef.current,
       onCode: async (raw) => {
         const v = await verifyToken(raw, keyRef.current);
-        if (!v.valid) { feedback('bad'); setErr('Mã không hợp lệ'); return; }
+        if (!v.valid) {
+          feedback('bad');
+          setModal({ kind: 'bad', title: 'MÃ KHÔNG HỢP LỆ', lines: ['Quét lại, hoặc gõ tên/SĐT ở ô dưới'] });
+          return;
+        }
         scannerRef.current?.stop();
         scannerRef.current = null;
         setCamera('off');
@@ -131,16 +166,12 @@ export default function GiftCounterPage() {
     if (s.ok) setCamera('on');
   }, [check]);
 
-  const results = useMemo(
-    () => (query.trim() ? searchRoster(roster, query, { limit: 6 }).results : []),
-    [roster, query],
-  );
-
   if (session === undefined) return null;
 
   // Trao quà tập trung một chỗ (AIM 10/09): chỉ máy đang đứng ở Quầy đổi quà
   // mới trao được. Trước đây mọi máy đều mở được màn này — cùng lớp lỗi với
   // quầy vé hội trường, và ở đây hậu quả là phát nhầm một phần quà thật.
+  // Server cũng từ chối (403), màn này chỉ là lớp nói cho người nghe.
   if (!canOpenGiftDesk(checkpoint)) {
     return (
       <main className="screen">
@@ -160,6 +191,8 @@ export default function GiftCounterPage() {
     );
   }
 
+  const plan = card ? giftPlan(card) : null;
+
   return (
     <main className="screen">
       <div className="cpbar">
@@ -175,19 +208,6 @@ export default function GiftCounterPage() {
         </div>
       )}
 
-      {flash && (
-        <div className="result ok" style={{ padding: 16, margin: '12px 12px 0' }}>
-          <p className="verdict">ĐÃ PHÁT — BẬC {flash.tier}</p>
-          <p className="meta">{flash.name} · trao quà cho sinh viên rồi bấm người tiếp theo</p>
-        </div>
-      )}
-
-      {err && (
-        <div className="alert warn" style={{ margin: '12px 12px 0' }}>
-          <b>{err}</b>
-        </div>
-      )}
-
       {card ? (
         <div className="pad">
           <p className="name" style={{ fontSize: 22, margin: '6px 0 2px' }}>
@@ -198,38 +218,9 @@ export default function GiftCounterPage() {
             <b>{card.student.badge_count} badge</b>
           </p>
 
-          <div className="list" style={{ marginTop: 14 }}>
-            {card.tiers.map((t) => {
-              const state = t.redeemed_at ? 'done'
-                : t.stock === 'out' ? 'out'
-                : t.eligible ? 'ready' : 'locked';
-              return (
-                <div key={t.id} className="hit" style={{ cursor: 'default' }}>
-                  <span>
-                    <span className="nm">Bậc {t.tier} — {t.name}</span>
-                    <span className="sub">
-                      cần {t.required} badge
-                      {t.left != null && t.stock !== 'out' && ` · còn ${t.left}`}
-                    </span>
-                  </span>
-                  {state === 'ready' && (
-                    <button className="primary" style={{ width: 'auto', padding: '10px 16px' }}
-                      disabled={busy} onClick={() => redeem(t)}>
-                      PHÁT
-                    </button>
-                  )}
-                  {state === 'done' && <span className="badges" style={{ color: 'var(--ok, #2c6e52)' }}>✓ đã nhận</span>}
-                  {state === 'out' && <span className="badges" style={{ color: 'var(--bad, #a33526)' }}>ĐÃ HẾT</span>}
-                  {state === 'locked' && (
-                    <span className="badges">thiếu {t.required - card.student.badge_count}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <GiftDecision plan={plan} busy={busy} onRedeem={redeem} />
 
-          <button className="ghost" style={{ marginTop: 14 }}
-            onClick={() => { setCard(null); setFlash(null); setErr(null); }}>
+          <button className="ghost" style={{ marginTop: 14 }} onClick={nextPerson}>
             NGƯỜI TIẾP THEO
           </button>
         </div>
@@ -272,6 +263,129 @@ export default function GiftCounterPage() {
       <div className="pad" style={{ marginTop: 'auto' }}>
         <button className="ghost" onClick={() => router.push('/quet')}>VỀ MÀN QUÉT</button>
       </div>
+
+      {/* Pop-up giữa màn hình, không tự tắt: PG đưa đồ xong mới bấm (AIM 10/09
+          — màn hình thấp làm dòng kết quả dưới đáy gần như không đọc được). */}
+      {modal && (
+        <div className="modal-back" role="dialog" aria-modal="true">
+          <div className={`modal-card ${modal.kind}`}>
+            <p className="verdict">{modal.title}</p>
+            {modal.items?.length > 0 && (
+              <p className="name">{modal.items.join(' + ')}</p>
+            )}
+            {modal.items?.length > 0 && modal.who && (
+              <p className="meta">Trao cho {modal.who}</p>
+            )}
+            {!modal.items?.length && modal.lines?.map((l, i) => (
+              <p key={i} className={i === 0 ? 'name' : 'meta'} style={{ fontSize: i === 0 ? 22 : undefined }}>{l}</p>
+            ))}
+            <button className="modal-go" onClick={modal.done ? nextPerson : () => setModal(null)}>
+              {modal.done ? 'HOÀN TẤT — NGƯỜI TIẾP THEO' : 'ĐÓNG'}
+            </button>
+          </div>
+        </div>
+      )}
     </main>
+  );
+}
+
+/**
+ * Một trạng thái, một câu, tối đa một nút.
+ *
+ * `hand` là danh sách món phải cầm lên — in to nhất trên màn hình, vì đó là
+ * thông tin duy nhất PG cần trong ba giây đứng trước một người.
+ */
+function GiftDecision({ plan, busy, onRedeem }) {
+  if (!plan) return null;
+
+  if (plan.state === 'none') {
+    return (
+      <div className="alert warn" style={{ marginTop: 14 }}>
+        <b>Sự kiện chưa cấu hình bậc quà</b>
+        Báo BTC mở trang quản trị → tab Cấu hình → Bậc quà.
+      </div>
+    );
+  }
+
+  if (plan.state === 'locked') {
+    return (
+      <div className="result info" style={{ padding: 16, marginTop: 14, borderRadius: 12 }}>
+        <p className="verdict">CHƯA ĐỦ ĐIỀU KIỆN</p>
+        <p className="name">Còn thiếu {plan.missing} badge</p>
+        <p className="meta">Đủ {plan.next.required} badge sẽ nhận {plan.next.name}.</p>
+      </div>
+    );
+  }
+
+  if (plan.state === 'out') {
+    return (
+      <div className="result bad" style={{ padding: 16, marginTop: 14, borderRadius: 12 }}>
+        <p className="verdict">ĐÃ HẾT QUÀ</p>
+        <p className="name">{itemNames(plan.shortfall)}</p>
+        <p className="meta">Báo BTC nạp thêm kho; SV quay lại sau, quyền lợi không mất.</p>
+      </div>
+    );
+  }
+
+  if (plan.state === 'done') {
+    return (
+      <>
+        <div className="result ok" style={{ padding: 16, marginTop: 14, borderRadius: 12 }}>
+          <p className="verdict">{plan.next ? 'ĐÃ NHẬN ĐỦ PHẦN NÀY' : 'ĐÃ NHẬN ĐỦ QUÀ'}</p>
+          <p className="name">Không đưa thêm gì</p>
+          <p className="meta">
+            {plan.already.map((t) => `${t.name} lúc ${hhmm(t.redeemed_at)}`).join(' · ')}
+          </p>
+        </div>
+        {plan.next && (
+          <div className="alert warn" style={{ marginTop: 10 }}>
+            <b>Còn thiếu {plan.missing} badge để nhận thêm {plan.next.name}</b>
+            Mời SV thu thập thêm rồi quay lại quầy.
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // state === 'ready'
+  const low = plan.hand.filter((t) => t.stock === 'low' && t.left != null);
+  return (
+    <>
+      <div className="result ok" style={{ padding: 16, marginTop: 14, borderRadius: 12 }}>
+        <p className="verdict">{plan.already.length ? 'TRAO THÊM' : 'TRAO'}</p>
+        <p className="name">{itemNames(plan.hand)}</p>
+        <p className="meta">
+          {plan.hand.length > 1
+            ? `${plan.hand.length} món — đưa đủ rồi mới bấm xác nhận`
+            : 'Đưa cho SV rồi bấm xác nhận'}
+        </p>
+      </div>
+
+      {plan.already.length > 0 && (
+        <div className="alert warn" style={{ marginTop: 10 }}>
+          <b>SV đã nhận trước đó — KHÔNG đưa lại</b>
+          {plan.already.map((t) => `${t.name} lúc ${hhmm(t.redeemed_at)}`).join(' · ')}
+        </div>
+      )}
+
+      {plan.shortfall.length > 0 && (
+        <div className="alert bad" style={{ marginTop: 10 }}>
+          <b>HẾT {itemNames(plan.shortfall).toUpperCase()}</b>
+          SV đủ điều kiện nhưng kho đã cạn — trao phần còn lại, báo BTC nạp thêm
+          rồi mời SV quay lại lấy nốt.
+        </div>
+      )}
+
+      {low.length > 0 && (
+        <p className="meta" style={{ marginTop: 8 }}>
+          Kho gần cạn: {low.map((t) => `${t.name} còn ${t.left}`).join(' · ')}
+        </p>
+      )}
+
+      <button className="primary" style={{ marginTop: 14 }}
+        disabled={busy} onClick={() => onRedeem(plan.target)}>
+        XÁC NHẬN ĐÃ TRAO — MỨC {plan.target.required}
+      </button>
+    </>
   );
 }
