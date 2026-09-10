@@ -976,6 +976,12 @@ function Ops({ api, actor, eventId }) {
                   const v = prompt(`Số suất mới cho "${a.name}"? (đã cấp ${a.claimed})`, a.capacity);
                   if (v != null) call('/api/admin/specials', 'PATCH', { id: a.id, capacity: Number(v) });
                 }}>Sửa suất</button>
+                <button type="button" className="admin-btn" onClick={() => {
+                  const v = prompt('Tên hiển thị mới (PG đọc tên này khi cấp suất):', a.name);
+                  if (v != null && v.trim()) {
+                    call('/api/admin/specials', 'PATCH', { id: a.id, name: v.trim() });
+                  }
+                }}>Đổi tên</button>
                 <button type="button" className="admin-btn" onClick={() =>
                   call('/api/admin/specials', 'PATCH', { id: a.id, is_open: !a.is_open })
                 }>{a.is_open ? 'Đóng' : 'Mở'}</button>
@@ -984,6 +990,27 @@ function Ops({ api, actor, eventId }) {
           ))}
         </tbody>
       </table>
+      {/* Tổng suất ĐANG MỞ = đúng con số app SV đọc thành "còn N suất", và với
+          z=1 cũng là số SV tối đa vào được. Hai hoạt động cùng mở sẽ cộng dồn:
+          nếu thực tế chúng dùng chung một hội trường, con số này vượt sức chứa
+          thật — chính là cái AIM phát hiện ngày 10/09. */}
+      {(() => {
+        const open = specials.filter((a) => a.is_open);
+        const total = open.reduce((s, a) => s + a.capacity, 0);
+        if (!open.length) {
+          return <p className="muted" style={{ fontSize: 13 }}>
+            Chưa hoạt động nào nhận đăng ký — sinh viên thấy “Đã hết suất”.
+          </p>;
+        }
+        return (
+          <p className="muted" style={{ fontSize: 13 }}>
+            <b>{open.length}</b> hoạt động đang mở · tổng <b>{total} suất</b> — app sinh viên
+            hiển thị đúng con số này, và với z = 1 đây cũng là <b>số SV tối đa</b> nhận suất.
+            {open.length > 1 && ' Nhiều hoạt động dùng CHUNG một phòng thì chỉ nên mở một, '
+              + 'nếu không tổng suất sẽ vượt sức chứa thật.'}
+          </p>
+        );
+      })()}
       <div className="admin-form-row" style={{ maxWidth: 560 }}>
         <input className="admin-input" id="sp-name" placeholder="Tên hoạt động mới (vd: Meet & Greet)" />
         <input className="admin-input" id="sp-cap" type="number" placeholder="Số suất" style={{ maxWidth: 110 }} />
