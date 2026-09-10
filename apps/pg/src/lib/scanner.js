@@ -164,6 +164,12 @@ export async function createDecoder() {
  */
 export async function startScanner({ video, onCode, onError, onTrackEnd, cooldownMs = 2500 }) {
   let stream, raf, timer, stopped = false, lastCode = null, lastAt = 0;
+  // `paused` giữ camera SÁNG nhưng ngừng giải mã. Test thực tế 10/09: máy đọc
+  // nhanh tới mức lượt quét kế tiếp lọt vào ngay khi PG còn chưa đọc xong kết
+  // quả lượt trước. Giờ kết quả là một hộp thoại chặn, và trong lúc nó mở thì
+  // không mã nào được nhận. Tắt hẳn camera sẽ khiến người tiếp theo phải chờ
+  // nó khởi động lại (~1s) — dừng giải mã thì bấm xong là quét được ngay.
+  let paused = false;
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -201,6 +207,7 @@ export async function startScanner({ video, onCode, onError, onTrackEnd, cooldow
 
   const tick = async (ts) => {
     if (stopped) return;
+    if (paused) { raf = requestAnimationFrame(tick); return; }
     if (ts - lastTick >= interval) {
       lastTick = ts;
       try {
@@ -224,6 +231,13 @@ export async function startScanner({ video, onCode, onError, onTrackEnd, cooldow
   return {
     ok: true,
     decoderKind: decoder.kind,
+    pause() { paused = true; },
+    resume() {
+      paused = false;
+      // Quên mã vừa đọc, nếu không thì sinh viên tiếp theo chìa ĐÚNG mã đó
+      // (hiếm) hay chính em vừa rồi quét lại (thường) sẽ bị cooldown nuốt mất.
+      lastCode = null;
+    },
     stop() {
       stopped = true;
       cancelAnimationFrame(raf);

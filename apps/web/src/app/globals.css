@@ -340,6 +340,36 @@ a { color: var(--accent); }
 .tier-out .tier-name { color: var(--ink-3); text-decoration: line-through; }
 .progress-note { font-size: 12.5px; margin: 8px 2px 0; }
 
+/* ---- Lịch sử trải nghiệm (AIM 10/09) ----
+   Gập lại mặc định: màn /toi trước hết là cái mã QR, và mã QR phải luôn nằm
+   trọn trong một màn hình không cần cuộn. */
+.xp-log { margin-top: 14px; border-top: 1px solid var(--line-soft); padding-top: 10px; }
+.xp-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; background: none; border: none; padding: 6px 2px; cursor: pointer;
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--ink-2);
+}
+.xp-empty { font-size: 13px; margin: 6px 2px 2px; }
+.xp-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex;
+  flex-direction: column; gap: 2px; }
+.xp-list li {
+  display: flex; align-items: center; gap: 10px; padding: 8px 2px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.xp-list li:last-child { border-bottom: none; }
+.xp-tick {
+  flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid;
+  place-items: center; font-size: 12px; font-weight: 700;
+  background: var(--ok-soft, rgba(44,106,79,.14)); color: var(--ok);
+}
+.xp-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.xp-name { font-size: 14.5px; font-weight: 600; }
+.xp-meta { font-size: 12px; color: var(--ink-3); }
+.xp-badge {
+  flex: none; font-size: 13.5px; font-weight: 700; color: var(--ok);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- /admin — console ---- */
 .admin-wide { max-width: 1100px; }
 .admin-head { display: flex; align-items: center; gap: 12px; }

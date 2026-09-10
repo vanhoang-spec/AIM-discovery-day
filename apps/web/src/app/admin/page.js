@@ -20,6 +20,19 @@ const KEY_STORE = 'atl_admin_key';
 const ACTOR_STORE = 'atl_admin_actor';
 const EVENT_STORE = 'atl_admin_event';
 
+/**
+ * Công cụ theo khu vực — TẮT cho Discovery Day 12/09/2026.
+ *
+ * AIM chốt 10/09: không chạy Giờ Vàng ×2 và không dùng bảng điều phối theo
+ * khu vực, nên hai khối đó chỉ làm rối bảng điều khiển cho nhân sự trực. Zone
+ * vẫn tồn tại trong dữ liệu và vẫn hiện như nhãn nhóm của từng điểm quét —
+ * chỉ các CÔNG CỤ thao tác theo zone là ẩn.
+ *
+ * Bật lại cho mùa sau: đổi thành true. Toàn bộ API và bảng dữ liệu phía dưới
+ * vẫn nguyên vẹn, không có gì phải dựng lại.
+ */
+const SHOW_ZONE_TOOLS = false;
+
 function useAdminFetch(accessKey) {
   return useCallback(async (path, init = {}) => {
     const res = await fetch(path, {
@@ -100,7 +113,7 @@ function Overview({ api, actor, eventId }) {
         </p>
       )}
 
-      {goldenActive && (
+      {SHOW_ZONE_TOOLS && goldenActive && (
         <div className="gold-banner">
           <span>
             ⚡ <b>GIỜ VÀNG — {golden.zone_name}</b> · còn {Math.ceil(golden.seconds_left / 60)} phút
@@ -113,6 +126,7 @@ function Overview({ api, actor, eventId }) {
       )}
       {gMsg && <p className="admin-err">{gMsg}</p>}
 
+      {SHOW_ZONE_TOOLS && (<>
       <h3>Khu vực — 15 phút gần nhất</h3>
       <table className="admin-table">
         <thead><tr><th>Zone</th><th className="num">Lượt quét</th><th className="num">Badge</th><th></th><th></th></tr></thead>
@@ -143,6 +157,7 @@ Nhớ báo MC và cắm biển zone.`)) {
         ⚡ = mở Giờ Vàng ×2 (40 phút · nắp 80 · ngân sách ngày {golden ? golden.golden_budget : 300}).
         Kênh báo sinh viên là MC + biển zone + PG đọc khi quét — app SV không nhận thông báo đẩy.
       </p>
+      </>)}
 
       <h3>Phân bố badge — dự trù quà đặc biệt</h3>
       {hist.length === 0 ? (
@@ -644,6 +659,7 @@ function Checkpoints({ api, actor, eventId }) {
           <button type="button" className="admin-btn" onClick={() =>
             setDraft({ new: true, kind: 'sponsor_booth', name: '' })
           }>+ Thêm hoạt động</button>
+          {SHOW_ZONE_TOOLS && (<>
           <input className="admin-input" id="zn-name" placeholder="Tên zone mới" style={{ maxWidth: 180 }} />
           <button type="button" className="admin-btn" onClick={() => {
             const nm = document.getElementById('zn-name').value.trim();
@@ -654,6 +670,7 @@ function Checkpoints({ api, actor, eventId }) {
             }).then(() => { setMsg({ bad: false, text: 'Đã tạo zone.' }); load(); })
               .catch((e) => setMsg({ bad: true, text: e.message }));
           }}>+ Tạo zone</button>
+          </>)}
         </div>
       )}
 
@@ -1025,7 +1042,8 @@ function Ops({ api, actor, eventId }) {
       <h3>Đội PG & máy quét ({dev.devices.filter((d) => !d.revoked_at).length} máy hoạt động)</h3>
       <table className="admin-table">
         <thead><tr>
-          <th>Máy</th><th className="num">Mã nhận máy</th><th>PG</th><th>Zone</th><th>Trạng thái</th><th></th>
+          <th>Máy</th><th className="num">Mã nhận máy</th><th>PG</th>
+          <th>Đang quét điểm</th><th>Vai trò</th><th>Trạng thái</th><th></th>
         </tr></thead>
         <tbody>
           {dev.devices.map((d) => (
@@ -1047,13 +1065,35 @@ function Ops({ api, actor, eventId }) {
                   {dev.staff.map((st) => <option key={st.id} value={st.id}>{st.full_name}</option>)}
                 </select>
               </td>
+              {/* Điều chuyển PG: máy hỏi server mỗi 20 giây và dựng hộp thoại
+                  "BTC ĐIỀU CHUYỂN VỊ TRÍ" — PG không còn tự đổi điểm trên máy
+                  nữa (yêu cầu 10/09: hay bấm nhầm). Cột Zone cũ đã bỏ: nó
+                  không điều khiển gì, chỉ làm rối bảng. */}
               <td>
-                <select className="admin-input" style={{ minWidth: 110 }} disabled={!!d.revoked_at}
-                  value={d.zone_id ?? ''}
+                <select className="admin-input" style={{ minWidth: 150 }} disabled={!!d.revoked_at}
+                  value={d.assigned_checkpoint_id ?? ''}
                   onChange={(e) => call('/api/admin/pg-devices', 'PATCH',
-                    { id: d.id, zone_id: e.target.value || null })}>
-                  <option value="">—</option>
-                  {dev.zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+                    { id: d.id, action: 'assign_checkpoint', checkpoint_id: e.target.value || null },
+                    e.target.value ? 'Đã điều chuyển — máy PG sẽ báo trong ~20 giây.'
+                      : 'Đã gỡ phân công — máy giữ nguyên điểm đang quét.')}>
+                  <option value="">— PG tự chọn —</option>
+                  {(dev.checkpoints ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}{c.zone_name ? ` · ${c.zone_name}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </td>
+              <td>
+                <select className="admin-input" style={{ minWidth: 130 }} disabled={!!d.revoked_at}
+                  value={d.device_role ?? 'scan'}
+                  onChange={(e) => call('/api/admin/pg-devices', 'PATCH',
+                    { id: d.id, device_role: e.target.value },
+                    e.target.value === 'hall_ticket'
+                      ? 'Máy này giờ mở được quầy vé hội trường.'
+                      : 'Máy này chỉ quét badge, không giữ chỗ được.')}>
+                  <option value="scan">Quét badge</option>
+                  <option value="hall_ticket">Quầy vé hội trường</option>
                 </select>
               </td>
               <td>

@@ -98,6 +98,39 @@ html, body {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
 }
 
+/* ---- hộp thoại chặn giữa màn hình (test thực tế 10/09) ----
+   Overlay đáy khung camera vẫn quá thấp trên máy màn hình ngắn, và máy đọc
+   nhanh tới mức lượt sau nhảy vào trước khi PG kịp đọc. Kết quả nay là hộp
+   thoại GIỮA màn hình, có nút phải bấm mới quét tiếp. */
+.modal-back {
+  position: fixed; inset: 0; z-index: 50; display: flex;
+  align-items: center; justify-content: center; padding: 18px;
+  background: rgba(0, 0, 0, .62);
+}
+.modal-card {
+  width: 100%; max-width: 460px; border-radius: 18px; padding: 22px 20px 18px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .45); text-align: center;
+}
+.modal-card .verdict {
+  font-size: 21px; font-weight: 800; letter-spacing: .02em; margin: 0 0 8px;
+}
+.modal-card .name { font-size: 30px; font-weight: 700; line-height: 1.15; margin: 0 0 6px; }
+.modal-card .meta { font-size: 15.5px; opacity: .9; margin: 0; }
+.modal-card .tilde { opacity: .8; font-weight: 400; }
+.modal-card.ok    { background: var(--ok);    color: var(--ok-ink); }
+.modal-card.amber { background: var(--amber); color: var(--amber-ink); }
+.modal-card.bad   { background: var(--bad);   color: var(--bad-ink); }
+.modal-card.info  { background: var(--info);  color: var(--info-ink); }
+/* Nút cao 56px: bấm được bằng ngón cái, kể cả khi PG đang cầm máy một tay và
+   đeo găng. currentColor giữ nút đọc được trên cả bốn nền màu. */
+.modal-go {
+  margin-top: 18px; width: 100%; min-height: 56px; border-radius: 12px;
+  font-size: 16.5px; font-weight: 800; letter-spacing: .01em;
+  border: 2px solid currentColor; background: rgba(255, 255, 255, .16);
+  color: inherit; cursor: pointer;
+}
+.modal-go:active { background: rgba(255, 255, 255, .3); }
+
 /* ---- controls ---- */
 button, .btn {
   font: inherit; font-weight: 700; border-radius: 10px; border: 2px solid var(--line);

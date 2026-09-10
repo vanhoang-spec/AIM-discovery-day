@@ -20,11 +20,17 @@ export async function GET(request) {
   if (!auth.ok) return adminError(auth);
   const eventId = Number(new URL(request.url).searchParams.get('event') ?? 1);
   const db = await getDb();
-  const [devices, staff, zones] = await Promise.all([
+  const [devices, staff, zones, checkpoints] = await Promise.all([
+    // assigned_checkpoint_id: điểm quét BTC phân công cho máy. Quy ước "đúng
+    // một dòng trong pg_device_checkpoints = vị trí hiện tại" — nhiều dòng là
+    // cấu hình phạm vi kiểu cũ và không được coi là lệnh điều chuyển.
     db.query(
       `select d.id, d.label, d.claim_code, d.zone_id, d.pg_staff_id,
               s.full_name as staff_name, z.name as zone_name,
-              d.claimed_at, d.revoked_at, d.last_sync_at, d.queue_depth, d.battery_pct
+              d.claimed_at, d.revoked_at, d.last_sync_at, d.queue_depth, d.battery_pct,
+              (select min(dc.checkpoint_id) from pg_device_checkpoints dc
+                where dc.device_id = d.id
+                having count(*) = 1) as assigned_checkpoint_id
          from pg_devices d
          left join pg_staff s on s.id = d.pg_staff_id and s.event_id = d.event_id
          left join zones z on z.id = d.zone_id and z.event_id = d.event_id
@@ -34,9 +40,24 @@ export async function GET(request) {
       `select id, full_name, role from pg_staff where event_id = $1 order by full_name`,
       [eventId]),
     db.query(`select id, name from zones where event_id = $1 order by display_order`, [eventId]),
+    db.query(
+      `select c.id, c.name, z.name as zone_name
+         from checkpoints c
+         left join zones z on z.id = c.zone_id and z.event_id = c.event_id
+        where c.event_id = $1 and c.is_active
+        order by c.display_order, c.id`, [eventId]),
   ]);
+  // device_role đến từ 0013. Đọc riêng và phòng thủ để bảng thiết bị vẫn mở
+  // được nếu migration chưa kịp áp — thiếu cột thì mọi máy hiện 'scan'.
+  const roles = await db.query(
+    `select id, device_role from pg_devices where event_id = $1`, [eventId],
+  ).then((r) => new Map(r.rows.map((x) => [x.id, x.device_role]))).catch(() => new Map());
+
   return Response.json(
-    { devices: devices.rows, staff: staff.rows, zones: zones.rows },
+    {
+      devices: devices.rows.map((d) => ({ ...d, device_role: roles.get(d.id) ?? 'scan' })),
+      staff: staff.rows, zones: zones.rows, checkpoints: checkpoints.rows,
+    },
     { headers: { 'Cache-Control': 'private, no-store' } },
   );
 }
@@ -126,7 +147,43 @@ export async function PATCH(request) {
     return Response.json({ ok: true, revoked: r.rows[0].label });
   }
 
+  // Điều chuyển máy sang điểm quét khác. Máy PG hỏi /api/pg/state mỗi 20 giây
+  // và dựng hộp thoại "BTC ĐIỀU CHUYỂN VỊ TRÍ" — thay cho nút tự đổi trên máy
+  // mà AIM yêu cầu gỡ ngày 10/09 vì PG hay bấm nhầm.
+  if (body.action === 'assign_checkpoint') {
+    const cpId = body.checkpoint_id ? Number(body.checkpoint_id) : null;
+    const dev = (await db.query(
+      `select id from pg_devices where id = $1 and event_id = $2`, [id, eventId])).rows[0];
+    if (!dev) return Response.json({ error: 'not_found' }, { status: 404 });
+
+    if (cpId) {
+      const cp = (await db.query(
+        `select id from checkpoints where id = $1 and event_id = $2`, [cpId, eventId])).rows[0];
+      if (!cp) return Response.json({ error: 'Điểm quét không thuộc sự kiện này' }, { status: 400 });
+    }
+    // Thay thế hoàn toàn: một máy đứng đúng một chỗ.
+    await db.query(`delete from pg_device_checkpoints where device_id = $1`, [id]);
+    if (cpId) {
+      await db.query(
+        `insert into pg_device_checkpoints (device_id, checkpoint_id, event_id)
+         values ($1, $2, $3)`, [id, cpId, eventId]);
+    }
+    await db.query(
+      `insert into audit_log (event_id, actor_type, actor_id, action, target_type, target_id,
+                              after_state)
+       values ($1, 'super_admin', $2, 'assign_pg_checkpoint', 'pg_device', $3::text, $4::jsonb)`,
+      [eventId, actor, String(id), JSON.stringify({ checkpoint_id: cpId })]);
+    return Response.json({ ok: true });
+  }
+
   const patch = {};
+  if (body.device_role !== undefined) {
+    const r = String(body.device_role);
+    if (!['scan', 'hall_ticket'].includes(r)) {
+      return Response.json({ error: 'Vai trò không hợp lệ' }, { status: 400 });
+    }
+    patch.device_role = r;
+  }
   if (body.zone_id !== undefined) patch.zone_id = body.zone_id ? Number(body.zone_id) : null;
   if (body.pg_staff_id !== undefined) patch.pg_staff_id = body.pg_staff_id ? Number(body.pg_staff_id) : null;
   if (body.label != null && String(body.label).trim()) patch.label = String(body.label).trim();

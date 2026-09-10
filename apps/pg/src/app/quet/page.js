@@ -18,12 +18,13 @@ import { useRouter } from 'next/navigation';
 import { verifyToken, importKey, normaliseLookupCode } from '@atl/qr-token';
 import {
   getQueue, getSession, getRoster, getActiveCheckpoint, setActiveCheckpoint, refreshRoster,
-  getGoldenStatus,
+  getGoldenStatus, fetchDeviceState,
 } from '@/lib/session';
 import { startScanner, feedback, holdWakeLock, IDLE_PAUSE_MS } from '@/lib/scanner';
 import { screenFor } from '@/lib/boot-state';
 import { useUpdateAvailable } from '@/lib/update-check';
 import { resultFromServer } from '@/lib/scan-verdict';
+import { canOpenHallDesk, needsMove } from '@/lib/device-role';
 import { STATE } from '@atl/scan-queue';
 
 const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
@@ -39,14 +40,18 @@ export default function ScanPage() {
   const rosterRef = useRef([]);
   const lastUidRef = useRef(null); // scan_uid của lượt đang hiện trên thẻ kết quả
   const startingRef = useRef(false);
+  const resultRef = useRef(false); // true khi hộp thoại kết quả đang mở
 
   const [session, setSession] = useState(null);
   const [checkpoint, setCheckpoint] = useState(null);
   const [result, setResult] = useState(null);
   const [stats, setStats] = useState({ unsent: 0, confirmed: 0 });
   const [online, setOnline] = useState(true);
-  const [camera, setCamera] = useState('starting'); // starting | on | paused | denied
+  const [camera, setCamera] = useState('starting'); // starting | on | paused | denied | broken
   const [picking, setPicking] = useState(false);
+  // Ba tín hiệu từ BTC, đều do /api/pg/state mang về (test thực tế 10/09):
+  const [revoked, setRevoked] = useState(false);   // admin đã thu hồi mã
+  const [moveTo, setMoveTo] = useState(null);      // admin điều chuyển sang điểm khác
 
   // ---- boot ----
   //
@@ -115,6 +120,19 @@ export default function ScanPage() {
       if (r?.ok) rosterRef.current = await getRoster();
     }, 600_000);
 
+    // Kênh lệnh từ BTC (10/09). 20 giây là đủ nhanh để một PG được điều
+    // chuyển biết mà đi, và đủ thưa để 45 máy chỉ tốn ~2 request/giây.
+    const stateTick = async () => {
+      if (!alive || !navigator.onLine || document.visibilityState !== 'visible') return;
+      const st = await fetchDeviceState();
+      if (!alive) return;
+      if (st.revoked) { setRevoked(true); return; }
+      const cp = await getActiveCheckpoint();
+      if (needsMove(st, cp)) setMoveTo(st.assigned);
+    };
+    const stateTimer = setInterval(stateTick, 20_000);
+    stateTick();
+
     const goOnline = () => { setOnline(true); tick(); };
     const goOffline = () => setOnline(false);
     window.addEventListener('online', goOnline);
@@ -127,6 +145,7 @@ export default function ScanPage() {
       alive = false;
       clearInterval(flushTimer);
       clearInterval(rosterTimer);
+      clearInterval(stateTimer);
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
       document.removeEventListener('visibilitychange', tick);
@@ -141,6 +160,11 @@ export default function ScanPage() {
   // đã giải mã ra một mã QR thì màn hình PHẢI đổi, kể cả khi máy hỏng.
   const handleCode = useCallback(async (raw) => {
     if (!checkpoint) return;
+    // Chốt chặn thứ hai sau scanner.pause(): kết quả đang hiện thì không nhận
+    // lượt mới, kể cả khi một khung hình đã kịp lọt qua trước lúc pause.
+    if (resultRef.current) return;
+    resultRef.current = true;
+    scannerRef.current?.pause();
     try {
       // expectedEventInstance: chặn NGAY TẠI MÁY, offline, mã QR của sự kiện
       // khác. Diễn tập 09/09 lộ lỗ hổng: thiếu tham số này, SV của điểm kia
@@ -243,6 +267,22 @@ export default function ScanPage() {
     idleTimer.current = setTimeout(stopCamera, IDLE_PAUSE_MS);
   }, [stopCamera]);
 
+  /**
+   * "HOÀN TẤT — QUÉT LƯỢT TIẾP THEO".
+   *
+   * Test thực tế 10/09: máy đọc quá nhanh, PG chưa đọc xong kết quả thì lượt
+   * sau đã nhảy vào — và vì lượt sau thường là chính em vừa rồi còn đang chìa
+   * mã, màn hình nhảy sang HỔ PHÁCH "đã nhận rồi", trông y như vừa quét hỏng.
+   * Nay mỗi lượt phải được PG bấm đóng; không còn đường tự động chạy tiếp.
+   */
+  const nextScan = useCallback(() => {
+    resultRef.current = false;
+    lastUidRef.current = null;
+    setResult(null);
+    scannerRef.current?.resume();
+    armIdle();
+  }, [armIdle]);
+
   const startCamera = useCallback(async () => {
     // startingRef chặn lần gọi thứ hai lọt vào TRONG lúc getUserMedia còn treo
     // (scannerRef chỉ được gán sau await) — hai camera cùng chạy là một nguồn
@@ -288,6 +328,29 @@ export default function ScanPage() {
   const screen = screenFor({ session, checkpoint, picking });
   if (screen === 'loading') return null;
 
+  // Thu hồi thắng mọi màn khác: máy này không được phép làm gì nữa, và PG
+  // phải biết ngay thay vì đứng quét vào hư không (test thực tế 10/09).
+  if (revoked) {
+    return (
+      <main className="screen">
+        <div className="pad" style={{ paddingTop: 40 }}>
+          <div className="alert bad" style={{ fontSize: 17 }}>
+            <b style={{ fontSize: 21 }}>BTC ĐÃ THU HỒI MÃ CỦA BẠN</b>
+            Vui lòng liên hệ BTC để được cấp lại mã mới.
+          </div>
+          <p className="muted" style={{ marginTop: 14 }}>
+            Các lượt quét đã gửi lên vẫn được giữ nguyên. Nếu máy còn lượt chưa
+            gửi, báo giám sát trước khi đóng app.
+          </p>
+          <button className="ghost" style={{ marginTop: 18 }}
+            onClick={() => router.push('/hang-cho')}>
+            XEM HÀNG ĐỢI TRÊN MÁY
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   const syncClass = !online ? 'offline' : stats.unsent > 0 ? 'sending' : 'ok';
   const syncText = !online
     ? `Mất mạng · ${stats.unsent} chờ gửi`
@@ -325,13 +388,13 @@ export default function ScanPage() {
         <span className="who">{session.device.label} · {session.device.staff_name}</span>
       </div>
 
-      <button
-        className="cpbar" onClick={() => setPicking(true)}
-        style={{ border: 'none', borderRadius: 0, minHeight: 0, width: '100%' }}
-      >
+      {/* Không còn là nút. Test thực tế 10/09: PG bấm nhầm sang điểm khác là
+          hỏng số liệu nhà tài trợ, nên việc điều chuyển chuyển hẳn cho BTC
+          làm trên trang quản trị — máy nhận lệnh qua /api/pg/state. */}
+      <div className="cpbar" style={{ borderRadius: 0, minHeight: 0, width: '100%' }}>
         <span>Đang quét: {checkpoint.name}</span>
-        <small>đổi ▸</small>
-      </button>
+        <small>{checkpoint.zone_name ?? ''}</small>
+      </div>
 
       {updateAvailable && (
         <button
@@ -391,28 +454,64 @@ export default function ScanPage() {
             </div>
           </div>
         )}
-        {/* Kết quả ĐÈ lên đáy camera — diễn tập 09/09: để dưới camera thì nó
-            rơi ra ngoài màn hình, PG phải cuộn mới biết vừa quét ra gì. */}
-        {result && (
-          <div className={`result result-overlay ${result.kind}`}>
+      </div>
+
+      <div className="pad row">
+        <button onClick={() => router.push('/tra-cuu')}>TRA CỨU TAY</button>
+        <button onClick={() => router.push('/qua')}>QUẦY QUÀ</button>
+        {/* Chỉ máy quầy vé trước hội trường mới thấy nút này (0013). Trước
+            đây mọi máy đều vào được và một cú bấm nhầm ở booth là mất một ghế
+            hội trường — AIM báo 10/09. */}
+        {canOpenHallDesk(session) && (
+          <button onClick={() => router.push('/suat')}>VÉ HỘI TRƯỜNG</button>
+        )}
+        <button className="ghost" onClick={() => router.push('/hang-cho')}>
+          HÀNG ĐỢI {stats.unsent > 0 ? `· ${stats.unsent}` : ''}
+        </button>
+      </div>
+
+      {/* ---- Hộp thoại KẾT QUẢ: chặn giữa màn hình, PG phải bấm mới quét tiếp ---- */}
+      {result && (
+        <div className="modal-back" role="dialog" aria-modal="true">
+          <div className={`modal-card ${result.kind}`}>
             <p className="verdict">{result.verdict}</p>
             <p className="name">{result.name}</p>
             <p className="meta">
               {result.meta}
               {result.pending && <span className="tilde"> · ~ chờ đồng bộ</span>}
             </p>
+            <button className="modal-go" onClick={nextScan} autoFocus>
+              HOÀN TẤT — QUÉT LƯỢT TIẾP THEO
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="pad row">
-        <button onClick={() => router.push('/tra-cuu')}>TRA CỨU TAY</button>
-        <button onClick={() => router.push('/qua')}>QUẦY QUÀ</button>
-        <button onClick={() => router.push('/suat')}>SUẤT ĐẶC BIỆT</button>
-        <button className="ghost" onClick={() => router.push('/hang-cho')}>
-          HÀNG ĐỢI {stats.unsent > 0 ? `· ${stats.unsent}` : ''}
-        </button>
-      </div>
+      {/* ---- Hộp thoại ĐIỀU CHUYỂN: BTC đổi vị trí máy trên trang quản trị ---- */}
+      {moveTo && (
+        <div className="modal-back" role="dialog" aria-modal="true">
+          <div className="modal-card info">
+            <p className="verdict">BTC ĐIỀU CHUYỂN VỊ TRÍ</p>
+            <p className="name">{moveTo.name}</p>
+            <p className="meta">
+              {moveTo.zone_name ? `Khu vực: ${moveTo.zone_name}. ` : ''}
+              Mời bạn di chuyển sang điểm này. Máy sẽ quét cho điểm mới ngay sau khi bạn xác nhận.
+            </p>
+            <button
+              className="modal-go"
+              onClick={async () => {
+                await setActiveCheckpoint(moveTo);
+                setCheckpoint(moveTo);
+                setMoveTo(null);
+                nextScan();
+              }}
+              autoFocus
+            >
+              ĐÃ HIỂU — CHUYỂN SANG ĐIỂM MỚI
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

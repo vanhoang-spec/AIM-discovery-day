@@ -63,7 +63,7 @@ export async function GET(request) {
   )).rows[0];
   if (!reg) return Response.json({ error: 'not_registered' }, { status: 404 });
 
-  const [ev, tiers, redeemed, special] = await Promise.all([
+  const [ev, tiers, redeemed, special, history] = await Promise.all([
     db.query(
       `select special_threshold_y, gift_ladder_mode from events where id = $1`,
       [eventId],
@@ -95,6 +95,19 @@ export async function GET(request) {
         where sa.event_id = $1 and sa.is_open`,
       [eventId],
     ),
+    // Lịch sử trải nghiệm (AIM 10/09): "em đã xong booth nào rồi?". Đọc thẳng
+    // từ attendance — bảng 1 dòng/mốc, nên nó đúng bằng những gì đã được ghi
+    // nhận, không phải suy ra từ bộ đếm. voided_at is null: badge đã bị BTC gỡ
+    // thì không còn là trải nghiệm đã hoàn thành.
+    db.query(
+      `select c.name, c.kind, c.badge_weight, z.name as zone_name, a.awarded_at
+         from attendance a
+         join checkpoints c on c.id = a.checkpoint_id and c.event_id = a.event_id
+         left join zones z on z.id = c.zone_id and z.event_id = c.event_id
+        where a.event_id = $1 and a.student_id = $2 and a.voided_at is null
+        order by a.awarded_at`,
+      [eventId, student.id],
+    ),
   ]);
 
   const y = ev.rows[0]?.special_threshold_y ?? null;
@@ -122,6 +135,13 @@ export async function GET(request) {
         badge_count: reg.badge_count,
         slots_left: special.rows[0]?.slots_left ?? 0,
       },
+      history: history.rows.map((h) => ({
+        name: h.name,
+        kind: h.kind,
+        zone: h.zone_name,
+        badges: h.badge_weight ?? 1,
+        at: h.awarded_at,
+      })),
     },
     { headers: { 'Cache-Control': 'private, no-store' } },
   );

@@ -84,7 +84,64 @@ function Progress({ p }) {
           tính. Mỗi bạn nhận <b>một suất</b>.
         </p>
       )}
+
+      <ExperienceLog history={p.history} />
     </section>
+  );
+}
+
+/**
+ * Lịch sử trải nghiệm — AIM yêu cầu 10/09: "để mỗi SV nắm được mình đã xong
+ * booth nào rồi".
+ *
+ * Danh sách theo thứ tự thời gian, không phải bảng: sinh viên đọc nó trên
+ * điện thoại giữa sân, vừa đi vừa xem. Mỗi dòng nói rõ được mấy badge, vì với
+ * trọng số thì "đã ghé 4 chỗ" không còn suy ra được "đang có mấy badge".
+ *
+ * Dữ liệu đi kèm bản tiến độ đã lưu trong máy, nên phần này cũng mở được khi
+ * mất mạng — đúng như phần mã QR ngay trên nó.
+ */
+function ExperienceLog({ history }) {
+  const [open, setOpen] = useState(false);
+  if (!Array.isArray(history)) return null;
+
+  const when = (iso) => {
+    try {
+      return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    } catch { return ''; }
+  };
+
+  return (
+    <div className="xp-log">
+      <button type="button" className="xp-toggle" onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}>
+        <span>Lịch sử trải nghiệm{history.length > 0 ? ` · ${history.length} hoạt động` : ''}</span>
+        <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (history.length === 0 ? (
+        <p className="muted xp-empty">
+          Bạn chưa quét mã ở hoạt động nào. Ghé một gian hàng bất kỳ và đưa mã QR
+          phía trên cho nhân viên để bắt đầu.
+        </p>
+      ) : (
+        <ul className="xp-list">
+          {history.map((h, i) => (
+            <li key={`${h.name}-${i}`}>
+              <span className="xp-tick" aria-hidden="true">✓</span>
+              <span className="xp-body">
+                <span className="xp-name">{h.name}</span>
+                <span className="xp-meta">
+                  {when(h.at)}{h.zone ? ` · ${h.zone}` : ''}
+                </span>
+              </span>
+              <span className="xp-badge">
+                {h.badges > 0 ? `+${h.badges}` : '—'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ))}
+    </div>
   );
 }
 

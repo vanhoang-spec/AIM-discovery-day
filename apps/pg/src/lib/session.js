@@ -101,6 +101,29 @@ export async function refreshRoster({ full = false } = {}) {
   return { ok: true, total: merged.length, changed: data.students.length };
 }
 
+/**
+ * Hỏi server: máy còn hợp lệ không, BTC có điều chuyển mình không.
+ *
+ * Trả `{ ok:false, revoked:true }` khi token đã chết — màn quét dựng màn chặn
+ * từ tín hiệu đó. Lỗi mạng trả `{ ok:false }` KHÔNG kèm revoked: mất sóng
+ * tuyệt đối không được biến thành "máy bị thu hồi".
+ */
+export async function fetchDeviceState() {
+  const session = await getSession();
+  if (!session) return { ok: false };
+  try {
+    const res = await fetch('/api/pg/state', {
+      headers: { Authorization: `Bearer ${session.token}` },
+      cache: 'no-store',
+    });
+    if (res.status === 403) return { ok: false, revoked: true };
+    if (!res.ok) return { ok: false };
+    return { ok: true, ...(await res.json()) };
+  } catch {
+    return { ok: false };
+  }
+}
+
 export async function claimDevice({ claimCode, pin }) {
   // Asking for persistent storage before anything is written gives the browser
   // the best chance of granting it — and an unpersisted queue is one storage
@@ -122,6 +145,9 @@ export async function claimDevice({ claimCode, pin }) {
     checkpoints: data.checkpoints,
     claimed_at: Date.now(),
   });
+  // BTC đã phân công sẵn điểm quét thì máy vào thẳng việc, không hỏi PG —
+  // đúng ý "PG không tự chọn điểm để khỏi bấm nhầm" (10/09).
+  if (data.assigned) await setActiveCheckpoint(data.assigned);
   await refreshRoster({ full: true });
   return data;
 }

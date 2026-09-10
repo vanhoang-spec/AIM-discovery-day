@@ -20,6 +20,7 @@ import { useRouter } from 'next/navigation';
 import { verifyToken, importKey } from '@atl/qr-token';
 import { searchRoster } from '@atl/vn-text';
 import { getRoster, getSession } from '@/lib/session';
+import { canOpenHallDesk } from '@/lib/device-role';
 import { startScanner, feedback, holdWakeLock } from '@/lib/scanner';
 
 const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
@@ -136,6 +137,28 @@ export default function SpecialDeskPage() {
   );
 
   if (session === undefined) return null;
+
+  // Chỉ máy quầy vé trước hội trường mới được giữ chỗ (0013). AIM báo 10/09:
+  // mọi máy đều mở được màn này, nên một PG ở booth bấm nhầm là cấp mất một
+  // ghế. Nút đã bị ẩn ở màn quét; chốt chặn này lo trường hợp gõ thẳng địa
+  // chỉ hoặc mở lại tab cũ.
+  if (!canOpenHallDesk(session)) {
+    return (
+      <main className="screen">
+        <div className="pad" style={{ paddingTop: 40 }}>
+          <div className="alert warn" style={{ fontSize: 16 }}>
+            <b style={{ fontSize: 19 }}>MÁY NÀY KHÔNG PHẢI QUẦY VÉ HỘI TRƯỜNG</b>
+            Chỉ máy BTC chỉ định đứng trước hội trường mới giữ chỗ được. Nếu bạn
+            đang trực quầy vé, báo BTC đổi vai trò cho máy rồi tải lại trang.
+          </div>
+          <button className="primary" style={{ marginTop: 18 }}
+            onClick={() => router.push('/quet')}>
+            VỀ MÀN QUÉT
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   // ---- AC24: offline here is a full-screen stop, not a degraded mode ----
   if (!online) {
