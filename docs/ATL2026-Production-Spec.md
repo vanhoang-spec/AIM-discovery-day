@@ -621,6 +621,30 @@ scratchpad phiên 08/09; căn cứ đồng ý: form gốc AIM có mục đồng 
 ghi `v1-2026-08`. Phát hiện kèm: nút "Mở đăng ký" chưa từng chạy được (42P08 — sửa cùng
 ngày, xem commit 6371f75).
 
+**Nhập đợt 2 — tối 10/09, file AIM chốt 18:00 cùng ngày.** 1.114 dòng, 4 sheet (vé DDay
+HCM 226 + HN 104 · Google Form FTU HCM 292 + HN 492). Rà trước khi nhập: **0 dòng thiếu
+tên · 0 dòng lệch cơ sở** giữa sheet và ô "học tại cơ sở nào" · 330/330 vé `Completed` ·
+và quan trọng nhất, **588/588 sinh viên đợt 07/09 đều còn trong file** — xác nhận đây là
+bản tích luỹ, không phải bản thay thế, nên nhập chồng là an toàn.
+
+Lọc theo `import-result` đợt trước để chỉ gửi phần mới: 1.100 dòng hợp lệ → bỏ 82 dòng
+trùng trong chính file (một em hai kênh, hoặc bấm gửi hai lần) → bỏ 602 dòng đã có sẵn →
+còn **416 dòng**. Kết quả: **411 created · 4 linked · 1 already_registered · 0 lỗi**,
+pilot 10 rồi đại trà 406 dòng @2 req/s trong 5,4 phút.
+
+Tổng đăng ký sau nhập: **Hà Nội 544 · TP.HCM 463 · 1.007** — khớp đúng 1.026 sinh viên
+trong file trừ 19 em thuộc 14 dòng bị loại. Lệch bộ đếm badge = 0 ở cả hai điểm.
+
+*14 dòng loại, đã có hồ sơ lý do:* 4 email không hợp lệ (hai em điền MSSV vào ô email,
+một em có dấu cách giữa địa chỉ) · 4 số điện thoại là số cố định `025…`/`023…` hoặc bỏ
+trống · 1 trùng SĐT với người khác tên (Ma Thi Thanh Lan / Vu Ha Linh Chi — **ca tồn từ
+07/09 vẫn chưa được AIM xác nhận**) · 5 dòng thử nghiệm (email test cũ của đội, tên "Ly"
+/ "hh" / "A"). Ba ca chờ bổ sung của đợt 07/09 vẫn nguyên: Hoàng Ngọc Ánh, Nguyễn Duy
+Uyên, Ma Thi Thanh Lan.
+
+*Quyết định của anh Hoàng:* 7 em đăng ký cả hai đầu thì **giữ cả hai**, mỗi đầu một mã QR
+riêng — máy PG tự chặn nếu chìa nhầm mã (`expectedEventInstance`, §4.4b).
+
 **Sân diễn tập người thật + 41 máy quét thật — tối 09/09.** 41 thiết bị đặt tên theo
 vị trí (CONG-01..04 · BOOTH-01..06/07 · HOITRUONG-01..03 · QUA-01..02 · SUAT-01..02 ·
 DUPHONG-01..03 mỗi điểm), mã nhận máy xuất CSV tải thẳng về máy anh Hoàng để in thẻ —
