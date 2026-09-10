@@ -517,6 +517,31 @@ Kiểu đổ là "từ chối sạch ở cửa", không phải sập dây chuy�
 ~45 máy PG + instance Vercel, ngày thật dùng ~half); CPU/RAM database chưa bao giờ là nút
 thắt (DB active ≤3 trong mọi bài ghi). Nâng gói = restart ~2 phút, rủi ro thuần túy.
 
+### 4.4d Hội trường là MỘT vé, không phải hai — AIM chốt 10/09
+AIM làm rõ luồng thật: **Student Survival Championship xong là chuyển thẳng sang Meet &
+Greet**, ai vào hội trường là dự cả hai. Nên **350 (HN) / 150 (HCM) là sức chứa CHUNG cho cả
+hai hoạt động cộng lại**, không phải con số của từng hoạt động.
+
+**Cấu hình cũ sai ở đâu.** Hai hoạt động cùng mở, mỗi cái 350 (HN): `hold_special_slot` cấp
+theo từng `special_activity_id`, `z = 1` chỉ chặn *một người lấy hai vé* — nó không chặn *hai
+nhóm người khác nhau lấy hết hai kho*. Hệ thống sẵn sàng cấp **700 vé cho 350 chỗ ngồi**. Và
+`/api/toi` cộng suất trống của mọi hoạt động đang mở, nên app sinh viên báo **"còn 700 suất"**.
+
+**Cách sửa — không đụng engine.** Một chỗ ngồi = một vé, nên mô hình đúng là **một hoạt động
+duy nhất**: đóng một hoạt động (`is_open = false`, đảo ngược được, không xoá dữ liệu), đổi tên
+hoạt động còn lại thành vé vào hội trường. Sức chứa giữ nguyên 350 / 150 — đã đúng sẵn.
+`z = 1` giữ nguyên. Máy PG xử lý hoạt động đóng an toàn: hiện "chưa mở nhận", không có nút
+GIỮ CHỖ.
+
+*Phương án bị loại:* giữ hai hoạt động và đặt `z = 2` — vẫn cho tối đa 350 người dự SSC **và**
+350 người khác dự M&G, tức 700 người vào một hội trường 350 chỗ. Kho chung cho nhiều hoạt
+động đòi sửa `hold_special_slot`, không đáng làm hai ngày trước sự kiện.
+
+**Hỗ trợ trong admin (commit sau `05bc45d`).** Bổ sung nút **Đổi tên** cho hoạt động đặc biệt
+(API `PATCH` vốn đã nhận `name`, UI thiếu nút), và dòng tổng dưới bảng: *"N hoạt động đang mở
+· tổng M suất"* — đúng con số app sinh viên đọc, kèm cảnh báo khi mở nhiều hoạt động dùng
+chung một phòng. Chính con số này là chỗ lỗi trên lộ ra.
+
 ### 4.4c Sự cố "hai màn hình, hai câu trả lời" — 10/09, phát hiện khi diễn tập
 AIM gửi hai ảnh chụp **cùng một sinh viên, cùng một thời điểm**: app SV báo *"Đủ điều kiện —
 tới quầy đăng ký"*, máy PG tại quầy suất báo *"Chưa đủ điều kiện"*. SV có **10 badge tổng /
