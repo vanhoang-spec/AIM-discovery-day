@@ -76,3 +76,30 @@ describe('needsMove — khi nào hiện hộp thoại ĐIỀU CHUYỂN', () => {
     assert.equal(needsMove({ ok: true, assigned: null }, cp(7)), false);
   });
 });
+
+describe('vai trò phải theo kịp BTC — lỗ hổng phát hiện 10/09 tối', () => {
+  // Vai trò được ghi vào phiên lúc NHẬN MÁY. Một máy đã nhận từ hôm trước giữ
+  // phiên cũ, và tải lại trang KHÔNG gọi lại /claim — nên nếu không đồng bộ
+  // lại, máy vừa được BTC chỉ định làm quầy vé vẫn bị chặn vĩnh viễn. Ba test
+  // dưới ghim đúng phép so sánh mà syncDeviceRole dựa vào.
+  const changed = (sessionRole, serverRole) =>
+    Boolean(serverRole) && sessionRole !== serverRole;
+
+  test('phiên cũ không có vai trò + server nói hall_ticket → phải cập nhật', () => {
+    assert.equal(changed(undefined, 'hall_ticket'), true);
+  });
+
+  test('BTC gỡ vai trò quầy vé → phải cập nhật xuống scan', () => {
+    assert.equal(changed('hall_ticket', 'scan'), true);
+  });
+
+  test('không đổi gì → không ghi lại phiên (tránh viết IndexedDB mỗi 20 giây)', () => {
+    assert.equal(changed('scan', 'scan'), false);
+    assert.equal(changed('hall_ticket', 'hall_ticket'), false);
+  });
+
+  test('server không trả vai trò (mất mạng) → giữ nguyên phiên đang có', () => {
+    assert.equal(changed('hall_ticket', undefined), false);
+    assert.equal(changed('hall_ticket', null), false);
+  });
+});

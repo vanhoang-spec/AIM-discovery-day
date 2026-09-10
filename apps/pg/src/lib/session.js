@@ -124,6 +124,24 @@ export async function fetchDeviceState() {
   }
 }
 
+/**
+ * Ghi lại vai trò máy vào phiên đang lưu trên điện thoại.
+ *
+ * Vai trò được ghi lúc NHẬN MÁY, nên nếu không có hàm này thì một máy đã nhận
+ * từ hôm trước sẽ không bao giờ biết BTC vừa đổi vai trò cho nó — kể cả khi
+ * tải lại trang, vì phiên đọc từ IndexedDB chứ không gọi lại /claim. Đó là
+ * đúng tình huống ngày 12/09: điều một máy dự phòng sang trực quầy vé.
+ *
+ * Trả về true khi có thay đổi, để màn hình biết mà vẽ lại.
+ */
+export async function syncDeviceRole(role) {
+  if (!role) return false;
+  const s = await getSession();
+  if (!s || s.device?.role === role) return false;
+  await setSession({ ...s, device: { ...s.device, role } });
+  return true;
+}
+
 export async function claimDevice({ claimCode, pin }) {
   // Asking for persistent storage before anything is written gives the browser
   // the best chance of granting it — and an unpersisted queue is one storage

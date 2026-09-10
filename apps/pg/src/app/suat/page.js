@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { verifyToken, importKey } from '@atl/qr-token';
 import { searchRoster } from '@atl/vn-text';
-import { getRoster, getSession } from '@/lib/session';
+import { getRoster, getSession, fetchDeviceState, syncDeviceRole } from '@/lib/session';
 import { canOpenHallDesk } from '@/lib/device-role';
 import { startScanner, feedback, holdWakeLock } from '@/lib/scanner';
 
@@ -47,7 +47,17 @@ export default function SpecialDeskPage() {
     (async () => {
       const s = await getSession();
       if (!s) { router.replace('/'); return; }
-      setSession(s);
+      // Hỏi server vai trò mới nhất TRƯỚC khi quyết định cho vào hay chặn.
+      // Màn này vốn bắt buộc có mạng, nên hỏi thêm một câu là hợp lý — và nó
+      // là thứ giúp máy vừa được BTC chỉ định làm quầy vé vào được ngay, thay
+      // vì phải nhận lại máy từ đầu.
+      const st = await fetchDeviceState();
+      if (st.ok && st.device?.role) {
+        await syncDeviceRole(st.device.role);
+        setSession(await getSession());
+      } else {
+        setSession(s);
+      }
       setRoster(await getRoster());
       keyRef.current = await importKey(process.env.NEXT_PUBLIC_ATL_HMAC_KEY || DEV_KEY);
     })();

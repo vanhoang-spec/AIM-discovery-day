@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation';
 import { verifyToken, importKey, normaliseLookupCode } from '@atl/qr-token';
 import {
   getQueue, getSession, getRoster, getActiveCheckpoint, setActiveCheckpoint, refreshRoster,
-  getGoldenStatus, fetchDeviceState,
+  getGoldenStatus, fetchDeviceState, syncDeviceRole,
 } from '@/lib/session';
 import { startScanner, feedback, holdWakeLock, IDLE_PAUSE_MS } from '@/lib/scanner';
 import { screenFor } from '@/lib/boot-state';
@@ -127,6 +127,13 @@ export default function ScanPage() {
       const st = await fetchDeviceState();
       if (!alive) return;
       if (st.revoked) { setRevoked(true); return; }
+      // BTC đổi vai trò máy (vd: điều máy dự phòng sang trực quầy vé) — phiên
+      // trên điện thoại phải theo kịp, nếu không nút VÉ HỘI TRƯỜNG không bao
+      // giờ hiện dù trang quản trị đã đổi.
+      if (await syncDeviceRole(st.device?.role)) {
+        const fresh = await getSession();
+        if (alive && fresh) setSession(fresh);
+      }
       const cp = await getActiveCheckpoint();
       if (needsMove(st, cp)) setMoveTo(st.assigned);
     };
