@@ -517,6 +517,35 @@ Kiểu đổ là "từ chối sạch ở cửa", không phải sập dây chuy�
 ~45 máy PG + instance Vercel, ngày thật dùng ~half); CPU/RAM database chưa bao giờ là nút
 thắt (DB active ≤3 trong mọi bài ghi). Nâng gói = restart ~2 phút, rủi ro thuần túy.
 
+### 4.4c Sự cố "hai màn hình, hai câu trả lời" — 10/09, phát hiện khi diễn tập
+AIM gửi hai ảnh chụp **cùng một sinh viên, cùng một thời điểm**: app SV báo *"Đủ điều kiện —
+tới quầy đăng ký"*, máy PG tại quầy suất báo *"Chưa đủ điều kiện"*. SV có **10 badge tổng /
+5 hoạt động lõi**, ngưỡng y = 10.
+
+**Nguyên nhân.** Migration 0012 chuyển `hold_special_slot` sang thang TỔNG theo chốt của AIM
+09/09; `/api/toi` đi theo. `/api/pg/special` **bị bỏ quên**, vẫn giữ `eligible:
+student.core_badge_count >= y`. Database sẵn sàng cấp suất — nếu PG cứ bấm giữ chỗ thì thành
+công — nhưng PG đọc dòng "chưa đủ điều kiện" rồi không bấm. Đây là lỗi *hiển thị* với hậu quả
+*vận hành*: sinh viên đủ điều kiện bị từ chối ngay tại quầy, và không ai biết là sai.
+
+**Bài học.** Đổi luật trong database mà không quét hết các đường đọc nó thì phần bị bỏ quên
+không hỏng — nó **nói dối một cách bình thản**. Tệ hơn im lặng: người vận hành tin nó.
+
+**Đã vá (commit `4d6a4c1`).** Mọi nơi đọc thang lõi để *quyết định* hoặc để *giải thích cho
+người dùng* đều chuyển sang tổng badge: `/api/pg/special` (eligible + thông báo từ chối),
+màn quầy suất, quầy quà, `/toi`, và trên admin (nhãn y, hồ sơ SV, tiêu đề bảng, phép đo tác
+động khi tăng y — trước đó đếm nhầm ladder nên báo sai số SV mất điều kiện).
+`core_badge_count` vẫn được DB duy trì nhưng **chỉ còn xuất hiện ở export cho nhà tài trợ**.
+Thêm `apps/web/test/ladder-consistency.test.js`: 4 lint tĩnh cấm mọi phép so sánh trên thang
+lõi, cấm cả **phần chữ** mô tả ngưỡng theo "hoạt động (cổng + gian hàng)", và chốt danh sách
+file được phép nhắc tới cột này.
+
+Kèm theo: hồ sơ SV trên admin đổi cột "Thang core" thành **"Badge cộng"** (+4 / +3 / +1) —
+đúng chỗ trả lời câu "vì sao 5 hoạt động lại thành 10 badge". Và bảng Bậc quà đổi từ hai
+`prompt()` nối nhau sang **ô nhập tại chỗ**: Chrome nuốt hộp thoại thứ hai khi người dùng tick
+"Ngăn trang tạo thêm hộp thoại", nên ô Kho biến mất không dấu vết — AIM tưởng không sửa được
+kho quà.
+
 ### 4.4b Diễn tập vai PG/SV — 09/09, trên event nháp 3 (đã chạy, đang tiếp diễn)
 Team đóng vai PG/SV quét thật trên máy thật; ledger event 1/2 không bị đụng. Mỗi phát hiện
 → sửa → deploy trong cùng buổi; các máy đang mở tự thấy nút Cập nhật (753a331) từ deploy sau:
