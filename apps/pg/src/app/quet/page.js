@@ -24,7 +24,7 @@ import { startScanner, feedback, holdWakeLock, IDLE_PAUSE_MS } from '@/lib/scann
 import { screenFor } from '@/lib/boot-state';
 import { useUpdateAvailable } from '@/lib/update-check';
 import { resultFromServer } from '@/lib/scan-verdict';
-import { canOpenHallDesk, needsMove } from '@/lib/device-role';
+import { canOpenHallDesk, canOpenGiftDesk, needsMove } from '@/lib/device-role';
 import { STATE } from '@atl/scan-queue';
 
 const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
@@ -465,7 +465,9 @@ export default function ScanPage() {
 
       <div className="pad row">
         <button onClick={() => router.push('/tra-cuu')}>TRA CỨU TAY</button>
-        <button onClick={() => router.push('/qua')}>QUẦY QUÀ</button>
+        {canOpenGiftDesk(checkpoint) && (
+          <button onClick={() => router.push('/qua')}>QUẦY QUÀ</button>
+        )}
         {/* Chỉ máy quầy vé trước hội trường mới thấy nút này (0013). Trước
             đây mọi máy đều vào được và một cú bấm nhầm ở booth là mất một ghế
             hội trường — AIM báo 10/09. */}

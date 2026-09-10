@@ -19,7 +19,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { verifyToken, importKey } from '@atl/qr-token';
 import { searchRoster } from '@atl/vn-text';
-import { getRoster, getSession } from '@/lib/session';
+import { getRoster, getSession, getActiveCheckpoint } from '@/lib/session';
+import { canOpenGiftDesk } from '@/lib/device-role';
 import { startScanner, feedback, holdWakeLock } from '@/lib/scanner';
 
 const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
@@ -29,6 +30,7 @@ const maskPhone = (p) => (p ? p.replace(/^(\d{3})\d{4}(\d{2,})$/, '$1····$2'
 export default function GiftCounterPage() {
   const router = useRouter();
   const [session, setSession] = useState(undefined);
+  const [checkpoint, setCheckpoint] = useState(null); // điểm máy đang đứng
   const [online, setOnline] = useState(true);
   const [query, setQuery] = useState('');
   const [roster, setRoster] = useState([]);
@@ -45,6 +47,7 @@ export default function GiftCounterPage() {
     (async () => {
       const s = await getSession();
       if (!s) { router.replace('/'); return; }
+      setCheckpoint(await getActiveCheckpoint());
       setSession(s);
       setRoster(await getRoster());
       keyRef.current = await importKey(process.env.NEXT_PUBLIC_ATL_HMAC_KEY || DEV_KEY);
@@ -134,6 +137,28 @@ export default function GiftCounterPage() {
   );
 
   if (session === undefined) return null;
+
+  // Trao quà tập trung một chỗ (AIM 10/09): chỉ máy đang đứng ở Quầy đổi quà
+  // mới trao được. Trước đây mọi máy đều mở được màn này — cùng lớp lỗi với
+  // quầy vé hội trường, và ở đây hậu quả là phát nhầm một phần quà thật.
+  if (!canOpenGiftDesk(checkpoint)) {
+    return (
+      <main className="screen">
+        <div className="pad" style={{ paddingTop: 40 }}>
+          <div className="alert warn" style={{ fontSize: 16 }}>
+            <b style={{ fontSize: 19 }}>MÁY NÀY KHÔNG PHẢI QUẦY ĐỔI QUÀ</b>
+            Quà được trao tập trung tại một bàn duy nhất. Nếu bạn đang trực bàn
+            trao quà, báo BTC chuyển máy này sang điểm “Quầy đổi quà” — khoảng
+            20 giây sau máy sẽ tự nhận.
+          </div>
+          <button className="primary" style={{ marginTop: 18 }}
+            onClick={() => router.push('/quet')}>
+            VỀ MÀN QUÉT
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="screen">

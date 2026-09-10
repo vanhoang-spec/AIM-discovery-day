@@ -13,6 +13,19 @@ export function canOpenHallDesk(session) {
 }
 
 /**
+ * Chỉ máy đang đứng ở Quầy đổi quà mới trao quà được (AIM 10/09: "trao tập
+ * trung một vị trí thôi").
+ *
+ * Ở đây KHÔNG cần thêm vai trò máy như quầy vé, vì quầy quà là một điểm quét
+ * thật trên sơ đồ — máy nào được phân công đứng đó thì đúng là máy trao quà.
+ * Một nguồn sự thật, và BTC điều chuyển bằng đúng cái ô đã dùng cho mọi máy
+ * khác. Máy bị gán nhầm điểm không kẹt: BTC đổi ô đó, ~20 giây sau máy nhận.
+ */
+export function canOpenGiftDesk(checkpoint) {
+  return checkpoint?.kind === 'gift_counter';
+}
+
+/**
  * Điểm quét BTC phân công cho máy, lấy từ kết quả đếm của server.
  * ĐÚNG một dòng mới là lệnh phân công — nhiều dòng là cấu hình phạm vi kiểu
  * cũ (0005) và không được tự chọn hộ PG.

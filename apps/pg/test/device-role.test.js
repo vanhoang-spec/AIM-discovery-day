@@ -9,7 +9,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { canOpenHallDesk, assignedFrom, needsMove } from '../src/lib/device-role.js';
+import { canOpenHallDesk, canOpenGiftDesk, assignedFrom, needsMove } from '../src/lib/device-role.js';
 
 describe('canOpenHallDesk — chỉ quầy vé trước hội trường', () => {
   test('máy quét badge thường KHÔNG mở được', () => {
@@ -101,5 +101,27 @@ describe('vai trò phải theo kịp BTC — lỗ hổng phát hiện 10/09 tố
   test('server không trả vai trò (mất mạng) → giữ nguyên phiên đang có', () => {
     assert.equal(changed('hall_ticket', undefined), false);
     assert.equal(changed('hall_ticket', null), false);
+  });
+});
+
+describe('canOpenGiftDesk — trao quà tập trung một chỗ (AIM 10/09)', () => {
+  test('máy đứng ở Quầy đổi quà thì trao được', () => {
+    assert.equal(canOpenGiftDesk({ id: 40, kind: 'gift_counter' }), true);
+  });
+
+  test('máy ở gian hàng nhà tài trợ thì KHÔNG', () => {
+    assert.equal(canOpenGiftDesk({ id: 7, kind: 'sponsor_booth' }), false);
+  });
+
+  test('máy ở cổng check-in thì KHÔNG', () => {
+    assert.equal(canOpenGiftDesk({ id: 1, kind: 'entrance' }), false);
+  });
+
+  test('chưa có điểm nào (máy vừa nhận, BTC chưa gán) → KHÔNG', () => {
+    // Hướng an toàn: thà bắt BTC gán một ô còn hơn để một máy chưa cấu hình
+    // phát quà thật.
+    assert.equal(canOpenGiftDesk(null), false);
+    assert.equal(canOpenGiftDesk(undefined), false);
+    assert.equal(canOpenGiftDesk({ id: 5 }), false);
   });
 });
