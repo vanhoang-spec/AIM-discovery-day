@@ -185,14 +185,14 @@ export default function SpecialDeskPage() {
             {card.student.full_name}
           </p>
           <p className="meta" style={{ margin: 0 }}>
-            {card.student.lookup_code} · <b>{card.student.core_badge_count} hoạt động</b>
-            {' '}(cần {card.y}) · {card.student.badge_count} badge tổng
+            {card.student.lookup_code} · <b>{card.student.badge_count} badge</b>
+            {' '}(cần {card.y})
           </p>
           {!card.eligible && (
             <div className="alert warn" style={{ marginTop: 10 }}>
               <b>Chưa đủ điều kiện.</b>
-              Thang này đếm <b>hoạt động</b> (cổng + gian hàng) — badge thưởng và
-              badge hội trường không tính.
+              Cần <b>{card.y} badge</b>, bạn này đang có <b>{card.student.badge_count}</b>.
+              Mọi hoạt động đều được tính — kể cả hội trường và Learning Zone.
             </div>
           )}
 

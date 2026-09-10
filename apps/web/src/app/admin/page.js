@@ -205,7 +205,7 @@ Nhớ báo MC và cắm biển zone.`)) {
 
       <h3>Hoạt động đặc biệt</h3>
       <table className="admin-table">
-        <thead><tr><th>Tên</th><th className="num">Đã cấp</th><th className="num">Đang giữ</th><th className="num">Còn</th><th className="num">SV đủ điều kiện (thang core)</th></tr></thead>
+        <thead><tr><th>Tên</th><th className="num">Đã cấp</th><th className="num">Đang giữ</th><th className="num">Còn</th><th className="num">SV đủ điều kiện</th></tr></thead>
         <tbody>
           {special.map((s) => (
             <tr key={s.special_activity_id}>
@@ -296,8 +296,7 @@ function Students({ api, actor, eventId }) {
             <li key={s.id}>
               <button type="button" onClick={() => open(s.id)}>
                 <b>{s.full_name}</b>
-                <span>{s.lookup_code} · {s.student_code ?? '—'} · {s.badge_count} badge
-                  ({s.core_badge_count} hoạt động)</span>
+                <span>{s.lookup_code} · {s.student_code ?? '—'} · {s.badge_count} badge</span>
               </button>
             </li>
           ))}
@@ -311,19 +310,19 @@ function Students({ api, actor, eventId }) {
           <p className="muted">
             {detail.student.lookup_code} · {detail.student.school_name ?? detail.student.school_other ?? '—'}
             {' '}· MSSV {detail.student.student_code ?? '—'}<br />
-            <b>{detail.student.badge_count} badge</b> · {detail.student.core_badge_count} hoạt động (thang đặc biệt)
+            <b>{detail.student.badge_count} badge</b> — dùng cho cả quà và suất đặc biệt
           </p>
 
           <h4>Badge</h4>
           <table className="admin-table">
-            <thead><tr><th>Hoạt động</th><th>Lúc</th><th>Nguồn</th><th>Thang core</th><th></th></tr></thead>
+            <thead><tr><th>Hoạt động</th><th>Lúc</th><th>Nguồn</th><th className="num">Badge cộng</th><th></th></tr></thead>
             <tbody>
               {detail.badges.map((b) => (
                 <tr key={b.checkpoint_id + (b.voided_at ?? '')} className={b.voided_at ? 'row-void' : ''}>
                   <td>{b.name}</td>
                   <td>{t(b.awarded_at)}</td>
                   <td>{b.source}</td>
-                  <td>{b.is_core ? '✓' : '—'}</td>
+                  <td className="num">{b.badge_weight > 0 ? `+${b.badge_weight}` : '—'}</td>
                   <td>
                     {b.voided_at
                       ? <span className="muted">đã gỡ: {b.void_reason}</span>
@@ -410,7 +409,7 @@ function Config({ api, actor, eventId }) {
       <table className="admin-table admin-config">
         <tbody>
           <tr>
-            <td>y — số <b>hoạt động</b> (cổng + booth) để mở hoạt động đặc biệt</td>
+            <td>y — số <b>badge</b> (tổng, có trọng số) để mở hoạt động đặc biệt</td>
             <td className="num">{ev.special_threshold_y}</td>
             <td><button type="button" className="admin-btn" onClick={() => {
               const v = prompt('y mới?', ev.special_threshold_y);
@@ -442,19 +441,27 @@ function Config({ api, actor, eventId }) {
         <tbody>
           {cfg.tiers.map((g) => (
             <tr key={g.id}>
+              {/* Ô nhập tại chỗ thay hai prompt() nối nhau: Chrome nuốt hộp
+                  thoại thứ hai khi người dùng tick "Ngăn trang tạo thêm hộp
+                  thoại", nên ô Kho biến mất không dấu vết (AIM báo 10/09). */}
               <td>{g.tier} — {g.gift_name}</td>
-              <td className="num">{g.required_badges}</td>
-              <td className="num">{g.stock_total}</td>
+              <td className="num">
+                <input className="admin-input" id={`gt-req-${g.id}`} type="number" min="0"
+                       defaultValue={g.required_badges}
+                       style={{ maxWidth: 84, textAlign: 'right' }} />
+              </td>
+              <td className="num">
+                <input className="admin-input" id={`gt-stock-${g.id}`} type="number" min="0"
+                       defaultValue={g.stock_total}
+                       style={{ maxWidth: 96, textAlign: 'right' }} />
+              </td>
               <td className="num">{g.stock_issued}</td>
               <td>
                 <button type="button" className="admin-btn" onClick={() => {
-                  const req = prompt(`Ngưỡng bậc ${g.tier}?`, g.required_badges);
-                  if (req == null) return;
-                  const stock = prompt('Kho?', g.stock_total);
-                  if (stock == null) return;
                   patch({ type: 'tier', tier_id: g.id,
-                          required_badges: Number(req), stock_total: Number(stock) });
-                }}>Sửa</button>
+                          required_badges: Number(document.getElementById(`gt-req-${g.id}`).value),
+                          stock_total: Number(document.getElementById(`gt-stock-${g.id}`).value) });
+                }}>Lưu</button>
               </td>
             </tr>
           ))}
@@ -484,7 +491,9 @@ function Config({ api, actor, eventId }) {
         }}>+ Tạo bậc</button>
       </div>
       <p className="muted">
-        Tăng ngưỡng sẽ hiện trước số SV bị ảnh hưởng để xác nhận. Quyền lợi đã cấp không bao giờ bị thu hồi.
+        Sửa <b>ngưỡng</b> hoặc <b>kho</b> ngay trong bảng rồi bấm <b>Lưu</b> ở cuối dòng.
+        Tăng ngưỡng sẽ hiện trước số SV bị ảnh hưởng để xác nhận. Kho không đặt được thấp hơn
+        số đã phát. Quyền lợi đã cấp không bao giờ bị thu hồi.
       </p>
 
       <h3>Nhân bản sự kiện (Grand Finale / mùa sau)</h3>
@@ -1131,7 +1140,7 @@ function Reconcile({ api, actor, eventId }) {
               <li key={h.id}>
                 <button type="button" onClick={() => { setSv(h); setMsg(null); }}>
                   <b>{h.full_name}</b>
-                  <span>{h.lookup_code} · {h.badge_count} badge ({h.core_badge_count} hoạt động)</span>
+                  <span>{h.lookup_code} · {h.badge_count} badge</span>
                 </button>
               </li>
             ))}

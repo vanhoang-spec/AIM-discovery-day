@@ -28,7 +28,7 @@ export async function GET(request, { params }) {
   const student = (await db.query(
     `select s.id, s.seq, s.full_name, s.lookup_code, s.phone, s.email,
             s.student_code, s.school_other, rs.name as school_name,
-            r.badge_count, r.core_badge_count
+            r.badge_count
        from students s
        join registrations r on r.student_id = s.id and r.event_id = $2
        left join ref_schools rs on rs.id = s.school_id
@@ -41,6 +41,7 @@ export async function GET(request, { params }) {
     db.query(
       `select a.checkpoint_id, c.name, c.kind::text as kind, a.awarded_at, a.source::text as source,
               a.voided_at, a.void_reason,
+              case when c.counts_toward_badges then c.badge_weight else 0 end as badge_weight,
               counts_toward_special(c.kind, c.counts_toward_badges) as is_core
          from attendance a
          join checkpoints c on c.id = a.checkpoint_id and c.event_id = a.event_id

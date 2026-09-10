@@ -170,7 +170,7 @@ export default function GiftCounterPage() {
           </p>
           <p className="meta" style={{ margin: 0 }}>
             {card.student.lookup_code} · {card.student.student_code ?? '—'} ·{' '}
-            <b>{card.student.badge_count} badge</b> ({card.student.core_badge_count} hoạt động)
+            <b>{card.student.badge_count} badge</b>
           </p>
 
           <div className="list" style={{ marginTop: 14 }}>

@@ -28,7 +28,7 @@ export async function GET(request) {
 
   const base = `
     select s.id, s.seq, s.full_name, s.lookup_code, s.phone, s.email,
-           s.student_code, r.badge_count, r.core_badge_count
+           s.student_code, r.badge_count
       from students s
       join registrations r on r.student_id = s.id and r.event_id = $1
      where s.merged_into_id is null and `;

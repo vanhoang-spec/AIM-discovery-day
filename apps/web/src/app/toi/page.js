@@ -73,15 +73,15 @@ function Progress({ p }) {
             <span className="tier-state">
               {p.special.eligible
                 ? (p.special.slots_left > 0 ? 'Đủ điều kiện — tới quầy đăng ký' : 'Đã hết suất')
-                : `Cần ${p.special.y} badge (bạn có ${p.special.badge_count ?? p.special.core_badge_count})`}
+                : `Cần ${p.special.y} badge (bạn có ${p.special.badge_count})`}
             </span>
           </li>
         )}
       </ul>
       {p.special?.y != null && (
         <p className="muted progress-note">
-          Hoạt động đặc biệt tính theo số <b>hoạt động</b> (cổng + gian hàng),
-          không tính badge thưởng.
+          Hoạt động đặc biệt tính trên <b>tổng badge</b> — mọi hoạt động đều được
+          tính. Mỗi bạn nhận <b>một suất</b>.
         </p>
       )}
     </section>

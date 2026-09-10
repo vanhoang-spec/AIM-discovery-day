@@ -109,8 +109,10 @@ export async function PATCH(request) {
 
     if (newY > oldY) {
       const impact = (await db.query(
+        // Thang TỔNG — đúng con số hold_special_slot xét (0012). Đo bằng
+        // core_badge_count sẽ báo sai số SV mất điều kiện.
         `select count(*)::int as losing from registrations
-          where event_id = $1 and core_badge_count >= $2 and core_badge_count < $3`,
+          where event_id = $1 and badge_count >= $2 and badge_count < $3`,
         [eventId, oldY, newY])).rows[0];
       if (!body.confirm) {
         return Response.json({

@@ -42,7 +42,7 @@ export async function POST(request) {
 
   const student = (await db.query(
     `select s.id, s.full_name, s.lookup_code, s.student_code,
-            r.badge_count, r.core_badge_count
+            r.badge_count
        from students s
        join registrations r on r.student_id = s.id and r.event_id = $2
       where s.seq = $1 and s.merged_into_id is null`,
@@ -100,7 +100,7 @@ export async function POST(request) {
 
   // Re-read the counters: a redeem above may sit alongside a concurrent scan.
   const fresh = (await db.query(
-    `select badge_count, core_badge_count from registrations
+    `select badge_count from registrations
       where event_id = $1 and student_id = $2`, [dev.event_id, student.id],
   )).rows[0];
 
@@ -112,7 +112,6 @@ export async function POST(request) {
       lookup_code: student.lookup_code,
       student_code: student.student_code,
       badge_count: fresh.badge_count,
-      core_badge_count: fresh.core_badge_count,
     },
     ladder_mode: ev.rows[0].gift_ladder_mode,
     special_threshold_y: ev.rows[0].special_threshold_y,

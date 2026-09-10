@@ -40,7 +40,7 @@ export async function POST(request) {
     return Response.json({ error: 'Thiếu mã sinh viên' }, { status: 400 });
   }
   const student = (await db.query(
-    `select s.id, s.full_name, s.lookup_code, r.core_badge_count, r.badge_count
+    `select s.id, s.full_name, s.lookup_code, r.badge_count
        from students s
        join registrations r on r.student_id = s.id and r.event_id = $2
       where s.seq = $1 and s.merged_into_id is null`,
@@ -57,7 +57,7 @@ export async function POST(request) {
     )).rows[0];
     if (r.result !== 'held' && r.result !== 'already_held') {
       const msg = {
-        not_eligible: 'Chưa đủ số hoạt động (thang đặc biệt)',
+        not_eligible: 'Chưa đủ badge để nhận suất đặc biệt',
         sold_out: 'ĐÃ HẾT SUẤT',
         limit_reached: 'SV đã dùng hết lượt hoạt động đặc biệt',
         closed: 'Hoạt động chưa mở nhận',
@@ -111,11 +111,15 @@ export async function POST(request) {
       seq,
       full_name: student.full_name,
       lookup_code: student.lookup_code,
-      core_badge_count: student.core_badge_count,
       badge_count: student.badge_count,
     },
     y,
-    eligible: student.core_badge_count >= y,
+    // [10/09] PHẢI là badge_count — thang TỔNG. hold_special_slot xét thang
+    // này kể từ migration 0012; so bằng core_badge_count ở đây khiến màn hình
+    // quầy suất báo "chưa đủ điều kiện" cho đúng người mà database sẵn sàng
+    // cấp suất (SV có 10 badge tổng / 5 hoạt động lõi). PG đọc dòng đó rồi
+    // không bấm giữ chỗ — sinh viên bị từ chối oan ngay tại quầy.
+    eligible: student.badge_count >= y,
     claim_limit: ev.rows[0].special_claim_limit,
     activities: acts.rows,
   });

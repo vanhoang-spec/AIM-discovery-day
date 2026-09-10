@@ -57,7 +57,7 @@ export async function GET(request) {
 
   const eventId = claims.eventInstance;
   const reg = (await db.query(
-    `select r.badge_count, r.core_badge_count
+    `select r.badge_count
        from registrations r where r.event_id = $1 and r.student_id = $2`,
     [eventId, student.id],
   )).rows[0];
@@ -105,7 +105,6 @@ export async function GET(request) {
       updated_at: new Date().toISOString(),
       event_id: eventId,
       badge_count: reg.badge_count,
-      core_badge_count: reg.core_badge_count,
       tiers: tiers.rows.map((t) => ({
         tier: t.tier,
         required: t.required_badges,
@@ -121,7 +120,6 @@ export async function GET(request) {
         // từ chối.
         eligible: y != null && reg.badge_count >= y,
         badge_count: reg.badge_count,
-        core_badge_count: reg.core_badge_count,
         slots_left: special.rows[0]?.slots_left ?? 0,
       },
     },
