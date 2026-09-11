@@ -53,7 +53,12 @@ export async function POST(request) {
     return bad('Email chưa đúng định dạng', 'email');
   }
   if (!/^(\+?84|0)\d{8,10}$/.test(phone)) return bad('Số điện thoại chưa đúng', 'phone');
-  if (![1, 2, 3].includes(eventId)) return bad('Vui lòng chọn sự kiện', 'event_id');
+  // Chỉ kiểm khoảng hợp lệ của byte eventInstance trong mã QR; sự kiện nào thật
+  // sự nhận đăng ký thì hỏi database ngay dưới. Trước 11/09 đây là danh sách
+  // viết cứng [1, 2, 3] — nên form tại cổng gửi DIỄN TẬP lên là server nhận.
+  if (!Number.isInteger(eventId) || eventId < 1 || eventId > 255) {
+    return bad('Vui lòng chọn sự kiện', 'event_id');
+  }
   if (!schoolId && !schoolOther) return bad('Vui lòng chọn trường đang học', 'school_id');
   if (!studentCode) return bad('Vui lòng nhập mã số sinh viên', 'student_code');
   if (birthYear !== null && (birthYear < CURRENT_YEAR - 40 || birthYear > CURRENT_YEAR - 15)) {
@@ -67,6 +72,12 @@ export async function POST(request) {
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
 
   const db = await getDb();
+
+  // [11/09] Sự kiện đã KHOÁ (0015) — DIỄN TẬP — không nhận đăng ký nào, kể cả
+  // tại cổng. register_student chỉ chặn cổng ONLINE, nên chốt ở đây.
+  const accepting = await db.query(
+    `select 1 from events e where e.id = $1 and ${EVENT_NOT_ARCHIVED}`, [eventId]);
+  if (accepting.rows.length === 0) return bad('Vui lòng chọn sự kiện', 'event_id');
   let row;
   try {
     const result = await db.query(

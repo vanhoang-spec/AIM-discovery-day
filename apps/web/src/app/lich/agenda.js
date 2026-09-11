@@ -8,6 +8,7 @@
  */
 
 import { getDb } from '@atl/db';
+import { EVENT_NOT_ARCHIVED } from '@/lib/event-visibility';
 import Link from 'next/link';
 
 const VN_TZ_MS = 7 * 3600 * 1000;
@@ -45,11 +46,15 @@ export async function loadAgenda() {
 
 async function readAgenda() {
   const db = await getDb();
+  // [11/09] Lọc theo cờ KHOÁ (0015), không theo cổng đăng ký online. Đóng đăng
+  // ký không có nghĩa là thôi có lịch: lọc theo cổng thì đúng ngày AIM đóng
+  // đăng ký online, trang lịch của Hà Nội và TP.HCM trống trơn. DIỄN TẬP vẫn
+  // ẩn — giờ vì nó đã khoá.
   const events = (await db.query(
-    `select id, slug, name, venue_name, city, starts_at
-       from events
-      where is_registration_open
-      order by id`,
+    `select e.id, e.slug, e.name, e.venue_name, e.city, e.starts_at
+       from events e
+      where ${EVENT_NOT_ARCHIVED}
+      order by e.id`,
   )).rows;
 
   const rows = (await db.query(

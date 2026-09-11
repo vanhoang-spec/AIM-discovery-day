@@ -1314,6 +1314,17 @@ export default function AdminPage() {
       .catch(() => setEvents([]));
   }, []);
 
+  // [11/09] Điểm đã lưu mà nay không còn trong danh sách (DIỄN TẬP đã khoá) →
+  // về điểm đầu tiên. Thiếu đoạn này thì ô chọn HIỆN "Hà Nội" trong khi mọi con
+  // số bên dưới vẫn là của diễn tập — đúng cái nhìn nhầm điểm mà ô chọn này
+  // sinh ra để chặn.
+  useEffect(() => {
+    if (events.length && !events.some((ev) => ev.id === eventId)) {
+      setEventId(events[0].id);
+      localStorage.setItem(EVENT_STORE, String(events[0].id));
+    }
+  }, [events, eventId]);
+
   const api = useAdminFetch(key || '');
 
   if (key === undefined) return null;
