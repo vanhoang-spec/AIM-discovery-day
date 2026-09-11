@@ -88,6 +88,23 @@ export async function POST(request) {
     const tierId = Number(body.gift_tier_id);
     if (!tierId) return Response.json({ error: 'Thiếu bậc quà' }, { status: 400 });
 
+    // [11/09] Quy định AIM (0014) chỉ đúng ở thang cộng dồn. TP.HCM bị đổi sang
+    // "Bậc cao nhất" từ 10/09: ở đó hàm chỉ ghi đúng một món, và hai SV cầm túi
+    // + bút về trong khi sổ chỉ có bút. Từ chối phát cho tới khi BTC đặt lại —
+    // kể cả từ một máy PG còn chạy bản cũ không biết tự chặn.
+    const mode = (await db.query(
+      `select gift_ladder_mode from events where id = $1`, [dev.event_id],
+    )).rows[0]?.gift_ladder_mode;
+    if (mode !== 'cumulative') {
+      return Response.json(
+        {
+          error: 'Sự kiện đang cài SAI chế độ quà ("Bậc cao nhất") — báo BTC đặt lại Cộng dồn rồi quét lại',
+          result: 'wrong_ladder_mode',
+        },
+        { status: 409 },
+      );
+    }
+
     before = new Set((await db.query(
       `select gift_tier_id from gift_redemptions where event_id = $1 and student_id = $2`,
       [dev.event_id, student.id],

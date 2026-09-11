@@ -136,9 +136,17 @@ export async function PATCH(request) {
   if (body.type === 'event_field') {
     const allowed = {
       special_claim_limit: (v) => Number.isInteger(v) && v >= 0 && v <= 10,
-      gift_ladder_mode: (v) => v === 'cumulative' || v === 'highest_only',
+      // [11/09] Chỉ còn một giá trị hợp lệ. Quy định AIM (0014) — mức 9 = túi +
+      // hộp bút — chỉ đúng ở thang cộng dồn; "Bậc cao nhất" khiến hàm phát quà
+      // ghi đúng một món. TP.HCM bị bấm sang đó từ 10/09 mà không ai hay.
+      gift_ladder_mode: (v) => v === 'cumulative',
     };
     const field = body.field;
+    if (field === 'gift_ladder_mode' && body.value === 'highest_only') {
+      return Response.json(
+        { error: 'Không cho chọn "Bậc cao nhất": quy định AIM là mức 9 = túi quà + hộp bút (thang cộng dồn).' },
+        { status: 409 });
+    }
     if (!allowed[field] || !allowed[field](body.value)) {
       return Response.json({ error: 'Trường hoặc giá trị không hợp lệ' }, { status: 400 });
     }

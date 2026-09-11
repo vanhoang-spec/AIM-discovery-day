@@ -117,4 +117,16 @@ describe('giftPlan — một lượt SV ở quầy quà', () => {
       assert.equal(giftPlan(bad).state, 'none');
     }
   });
+
+  test('sự kiện cài sai "Bậc cao nhất" (TP.HCM 11/09): không hứa món nào, không có nút phát', () => {
+    const p = giftPlan({ ...card(10), ladder_mode: 'highest_only' });
+    assert.equal(p.state, 'misconfigured');
+    assert.equal(p.target, null);
+    assert.deepEqual(p.hand, []);
+  });
+
+  test('thang cộng dồn — hoặc server cũ không gửi chế độ — vẫn phát bình thường', () => {
+    assert.equal(giftPlan({ ...card(9), ladder_mode: 'cumulative' }).state, 'ready');
+    assert.equal(giftPlan(card(9)).state, 'ready');
+  });
 });

@@ -440,12 +440,23 @@ function Config({ api, actor, eventId }) {
             }}>Sửa</button></td>
           </tr>
           <tr>
-            <td>Thang quà — cộng dồn hay chỉ bậc cao nhất</td>
-            <td>{ev.gift_ladder_mode === 'cumulative' ? 'Cộng dồn' : 'Bậc cao nhất'}</td>
-            <td><button type="button" className="admin-btn" onClick={() =>
-              patch({ type: 'event_field', field: 'gift_ladder_mode',
-                      value: ev.gift_ladder_mode === 'cumulative' ? 'highest_only' : 'cumulative' })
-            }>Đổi</button></td>
+            <td>Thang quà</td>
+            {/* [11/09] Không còn nút Đổi hai chiều. Quy định AIM (0014) chỉ đúng
+                ở Cộng dồn: mức 9 = túi + hộp bút. TP.HCM bị bấm "Đổi" 11 lần lúc
+                11:49–11:52 ngày 10/09, dừng ở "Bậc cao nhất" mà không ai hay, và
+                hai SV bị sổ ghi thiếu túi. Nút còn lại chỉ đi MỘT chiều. */}
+            <td className={ev.gift_ladder_mode === 'cumulative' ? '' : 'cell-bad'}>
+              {ev.gift_ladder_mode === 'cumulative'
+                ? 'Cộng dồn — cố định theo quy định AIM (mức 9 = túi + hộp bút)'
+                : 'Bậc cao nhất — SAI quy định, quầy quà đang từ chối phát'}
+            </td>
+            <td>
+              {ev.gift_ladder_mode !== 'cumulative' && (
+                <button type="button" className="admin-btn" onClick={() =>
+                  patch({ type: 'event_field', field: 'gift_ladder_mode', value: 'cumulative' })
+                }>Đặt lại Cộng dồn</button>
+              )}
+            </td>
           </tr>
         </tbody>
       </table>

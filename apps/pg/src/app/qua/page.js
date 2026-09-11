@@ -333,6 +333,19 @@ export default function GiftCounterPage() {
 function GiftDecision({ plan, busy, onRedeem }) {
   if (!plan) return null;
 
+  if (plan.state === 'misconfigured') {
+    return (
+      <div className="result bad" style={{ padding: 16, marginTop: 14, borderRadius: 12 }}>
+        <p className="verdict">CHƯA PHÁT ĐƯỢC — SỰ KIỆN CÀI SAI</p>
+        <p className="name">Thang quà đang là “Bậc cao nhất”</p>
+        <p className="meta">
+          Theo quy định AIM, mức 9 = túi quà + hộp bút. Báo BTC vào trang quản trị →
+          Cấu hình → Thang quà → Đặt lại Cộng dồn, rồi quét lại bạn này.
+        </p>
+      </div>
+    );
+  }
+
   if (plan.state === 'none') {
     return (
       <div className="alert warn" style={{ marginTop: 14 }}>

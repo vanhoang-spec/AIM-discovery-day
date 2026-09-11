@@ -40,6 +40,15 @@ export function giftPlan(card) {
     state: 'none', target: null, hand: [], already: [], shortfall: [],
     missing: null, next: null,
   };
+
+  // [11/09] Quy định AIM chỉ đúng ở thang CỘNG DỒN (0014): mức 9 = túi + bút.
+  // TP.HCM bị bấm sang "Bậc cao nhất" từ 10/09 — ở chế độ đó server chỉ ghi
+  // đúng một món, nên màn hình hứa túi + bút mà sổ chỉ có bút. Không hứa, không
+  // phát gì cho tới khi BTC đặt lại. Server cũ không gửi chế độ → không chặn.
+  if (card?.ladder_mode && card.ladder_mode !== 'cumulative') {
+    return { ...base, state: 'misconfigured' };
+  }
+
   if (!tiers.length) return base;
 
   // "Đã nhận" đọc theo dòng đã ghi, KHÔNG lọc theo điều kiện hiện tại: BTC nâng
