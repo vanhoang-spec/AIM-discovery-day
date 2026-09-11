@@ -644,6 +644,37 @@ scratchpad phiên 08/09; căn cứ đồng ý: form gốc AIM có mục đồng 
 ghi `v1-2026-08`. Phát hiện kèm: nút "Mở đăng ký" chưa từng chạy được (42P08 — sửa cùng
 ngày, xem commit 6371f75).
 
+**Nhập đợt 3 — đêm 11/09, file AIM chốt 23:00 cùng ngày.** 1.340 dòng, 4 sheet (vé DDay
+HCM 280 + HN 121 · Google Form FTU HCM 316 + HN 623) — cấu trúc y hệt file 10/09, 100% vé
+`Completed`. Rà trước khi nhập, chỉ đọc, bằng đúng luật của `convert.mjs`: 1.340 → **1.324 hợp
+lệ → 16 loại** (khớp); `FIX_PHONE` cũ gắn theo số dòng (`FTU HCM #80`) vẫn trúng đúng người; 2
+trong 14 ca lỗi đợt 10/09 đã được AIM sửa và được nhập.
+
+Đối chiếu với 1.074 dòng đã nhập của hai đợt trước: 1.144 dòng đã có → không gọi lại API;
+**180 dòng mới = 175 người** (Hà Nội 126 · TP.HCM 49); 0 ca đăng ký thêm điểm thứ hai; 0 ca
+trùng SĐT với người khác tên.
+
+*Rủi ro tìm ra khi rà `register_student`:* hàm nhận diện người theo email **hoặc** SĐT, rồi luôn
+gửi thư xác nhận tới email của dòng đang nhập kèm mã QR của hồ sơ tìm được. Một dòng trùng SĐT
+với *người khác* sẽ hoặc im lặng không được đăng ký (cùng điểm), hoặc khiến email người mới nhận
+mã QR của người kia (khác điểm). File của AIM không cho biết ai đã tự đăng ký trên app, nên trước
+khi nhập có một câu SQL chỉ đọc đưa 180 dòng vào `VALUES`, đối chiếu với toàn bộ `students` theo
+đúng cách so khớp của hàm: **0 dòng** — cả 180 là người mới hoàn toàn.
+
+Nhập: pilot 5 rồi 175 dòng @2 req/s trong 2 phút — **175 created · 5 already_registered (trùng
+trong chính file) · 0 linked · 0 lỗi**, 180/180 HTTP 200.
+
+Đối soát sau nhập: **Hà Nội 678 · TP.HCM 533 · 1.211** đăng ký. Trong 1 giờ: HN +129, HCM +52
+(đợt nhập 126/49 + SV tự đăng ký). Hàng đợi thư xác nhận về 0, 181 thư gửi trong giờ; 1 thư ở
+trạng thái `failed` — con số tích luỹ từ trước tới nay, không riêng đợt này. Lệch bộ đếm badge = 0
+ở cả hai điểm.
+
+*Gửi AIM (`ATL2026-Bao-AIM-sau-nhap-11Sep.csv`):* 16 dòng cần sửa (email sai, SĐT là MSSV, Ma Thi
+Thanh Lan trùng SĐT với Vu Ha Linh Chi, dòng rác/thử nghiệm) · **44 đơn mua nhiều vé =
+48 người đi kèm không có dữ liệu** — file vé chỉ ghi người đặt, nên những người này chỉ vào được
+qua đăng ký nhanh tại cổng · Đỗ Trâm Anh đổi SĐT (hệ thống giữ số cũ; tra tại cổng bằng tên hoặc
+email).
+
 **Nhập đợt 2 — tối 10/09, file AIM chốt 18:00 cùng ngày.** 1.114 dòng, 4 sheet (vé DDay
 HCM 226 + HN 104 · Google Form FTU HCM 292 + HN 492). Rà trước khi nhập: **0 dòng thiếu
 tên · 0 dòng lệch cơ sở** giữa sheet và ô "học tại cơ sở nào" · 330/330 vé `Completed` ·
