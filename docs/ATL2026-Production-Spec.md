@@ -666,7 +666,10 @@ trong chính file) · 0 linked · 0 lỗi**, 180/180 HTTP 200.
 
 Đối soát sau nhập: **Hà Nội 678 · TP.HCM 533 · 1.211** đăng ký. Trong 1 giờ: HN +129, HCM +52
 (đợt nhập 126/49 + SV tự đăng ký). Hàng đợi thư xác nhận về 0, 181 thư gửi trong giờ; 1 thư ở
-trạng thái `failed` — con số tích luỹ từ trước tới nay, không riêng đợt này. Lệch bộ đếm badge = 0
+trạng thái `failed` — không thuộc đợt này: SV 564E7X tự đăng ký 08/09 với email có dấu (Telex gõ
+"phuw" thành "phư"), Resend 422 cả 8 lần. 12/09 đổi sang email SV xác nhận bằng SQL có chốt chặn,
+đưa thư 347 vào lại hàng đợi → `sent` ngay lần đầu. Form lẫn server đều đang nhận email có dấu —
+sửa sau sự kiện, không deploy trong ngày 12/09. Lệch bộ đếm badge = 0
 ở cả hai điểm.
 
 *Gửi AIM (`ATL2026-Bao-AIM-sau-nhap-11Sep.csv`):* 16 dòng cần sửa (email sai, SĐT là MSSV, Ma Thi
