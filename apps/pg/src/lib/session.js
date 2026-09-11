@@ -67,6 +67,26 @@ export const getSession = () => kv.get(K.session);
 export const setSession = (s) => kv.set(K.session, s);
 export const clearSession = () => kv.delete(K.session);
 
+/**
+ * Xoá sạch máy cũ khỏi điện thoại để nhận mã máy mới. CHỈ gọi khi server đã
+ * khẳng định máy bị THU HỒI (fetchDeviceState → revoked: true, tức 403).
+ *
+ * Sinh 11/09, khi khoá sự kiện DIỄN TẬP: trang nhận máy chỉ hiện "Máy đã sẵn
+ * sàng" khi điện thoại còn phiên cũ, và màn thu hồi không có lối ra — nên một
+ * điện thoại đã tập dượt không có cách nào nhập mã máy thật của ngày sự kiện,
+ * trừ việc bắt PG vào cài đặt trình duyệt xoá dữ liệu trang web.
+ *
+ * Xoá cả hàng đợi là có chủ đích, và an toàn ĐÚNG VÌ đã bị thu hồi: token cũ
+ * đã chết nên không lượt nào trong đó còn gửi lên được. Giữ lại thì chúng sẽ
+ * đi lên bằng token của máy MỚI — với điểm quét của sự kiện cũ — và bị từ
+ * chối, hoặc tệ hơn là chặn nhầm "đã có badge" cho chính SV đó ở máy mới.
+ */
+export async function forgetRevokedDevice() {
+  const q = getQueue();
+  for (const row of await q.store.all()) await q.store.delete(row.scan_uid);
+  await Promise.all(Object.values(K).map((key) => kv.delete(key)));
+}
+
 export const getActiveCheckpoint = () => kv.get(K.checkpoint);
 export const getGoldenStatus = () => kv.get(K.golden);
 export const setActiveCheckpoint = (cp) => kv.set(K.checkpoint, cp);

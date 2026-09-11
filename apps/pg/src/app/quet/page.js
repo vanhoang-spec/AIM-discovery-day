@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation';
 import { verifyToken, importKey, normaliseLookupCode } from '@atl/qr-token';
 import {
   getQueue, getSession, getRoster, getActiveCheckpoint, setActiveCheckpoint, refreshRoster,
-  getGoldenStatus, fetchDeviceState, syncDeviceRole,
+  getGoldenStatus, fetchDeviceState, syncDeviceRole, forgetRevokedDevice,
 } from '@/lib/session';
 import { startScanner, feedback, holdWakeLock, IDLE_PAUSE_MS } from '@/lib/scanner';
 import { screenFor } from '@/lib/boot-state';
@@ -366,7 +366,24 @@ export default function ScanPage() {
             Các lượt quét đã gửi lên vẫn được giữ nguyên. Nếu máy còn lượt chưa
             gửi, báo giám sát trước khi đóng app.
           </p>
-          <button className="ghost" style={{ marginTop: 18 }}
+          {/* [11/09] Lối ra duy nhất của một máy đã thu hồi. Trước đây không có:
+              trang nhận máy chỉ hiện "Máy đã sẵn sàng" khi còn phiên cũ, nên
+              điện thoại đã tập dượt (DIỄN TẬP bị khoá) không nhập được mã máy
+              thật của ngày sự kiện. Token cũ đã chết nên hàng đợi trên máy vốn
+              không gửi lên được nữa — nói rõ số lượt rồi mới xoá. */}
+          <button className="primary" style={{ marginTop: 18 }}
+            onClick={async () => {
+              const { unsent } = await getQueue().stats();
+              const ok = window.confirm(unsent > 0
+                ? `Máy này đã bị thu hồi nên ${unsent} lượt chưa gửi trên máy sẽ không gửi lên được nữa và sẽ bị xoá. Tiếp tục nhận mã máy mới?`
+                : 'Xoá máy cũ khỏi điện thoại này để nhập mã máy mới?');
+              if (!ok) return;
+              await forgetRevokedDevice();
+              router.replace('/');
+            }}>
+            NHẬN MÃ MÁY MỚI
+          </button>
+          <button className="ghost" style={{ marginTop: 10 }}
             onClick={() => router.push('/hang-cho')}>
             XEM HÀNG ĐỢI TRÊN MÁY
           </button>
