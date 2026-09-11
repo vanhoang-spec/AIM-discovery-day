@@ -369,6 +369,8 @@ a { color: var(--accent); }
   flex: none; font-size: 13.5px; font-weight: 700; color: var(--ok);
   font-variant-numeric: tabular-nums;
 }
+/* Điểm không cộng badge (cổng check-in): nhãn trung tính, không mang màu "được". */
+.xp-badge.none { font-size: 12px; font-weight: 600; color: var(--ink-3); }
 
 /* ---- /admin — console ---- */
 .admin-wide { max-width: 1100px; }

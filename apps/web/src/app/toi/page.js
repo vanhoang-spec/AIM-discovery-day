@@ -136,7 +136,14 @@ function ExperienceLog({ history }) {
     <div className="xp-log">
       <button type="button" className="xp-toggle" onClick={() => setOpen((v) => !v)}
         aria-expanded={open}>
-        <span>Lịch sử trải nghiệm{history.length > 0 ? ` · ${history.length} hoạt động` : ''}</span>
+        {/* Check-in ở cổng là điểm danh, không phải một hoạt động — đếm nó vào
+            đây là "1 hoạt động" cho người mới qua cổng. */}
+        <span>
+          Lịch sử trải nghiệm
+          {history.some((h) => h.kind !== 'entrance')
+            ? ` · ${history.filter((h) => h.kind !== 'entrance').length} hoạt động`
+            : ''}
+        </span>
         <span aria-hidden="true">{open ? '▴' : '▾'}</span>
       </button>
       {open && (history.length === 0 ? (
@@ -155,8 +162,10 @@ function ExperienceLog({ history }) {
                   {when(h.at)}{h.zone ? ` · ${h.zone}` : ''}
                 </span>
               </span>
-              <span className="xp-badge">
-                {h.badges > 0 ? `+${h.badges}` : '—'}
+              {/* [11/09] Chỉ điểm thật sự tính badge mới có "+N" — cộng các số ở
+                  cột này phải ra đúng con số badge to phía trên. */}
+              <span className={`xp-badge${h.badges > 0 ? '' : ' none'}`}>
+                {h.badges > 0 ? `+${h.badges}` : h.kind === 'entrance' ? 'Check-in' : '—'}
               </span>
             </li>
           ))}

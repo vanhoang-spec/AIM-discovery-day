@@ -17,6 +17,33 @@ export const REJECT_REASON = {
 };
 
 /**
+ * Dòng phụ trên thẻ XANH ngay khi vừa quét, TRƯỚC khi server trả lời.
+ *
+ * Trước 11/09 dòng này luôn là "badge thứ N+1" — sai ở hai kiểu điểm: điểm
+ * KHÔNG tính badge (cổng check-in) hứa với SV một badge không tồn tại, còn
+ * hoạt động trọng số 3–4 thì đếm hụt. Sổ tay PG dặn "cổng không cấp badge,
+ * đừng hứa" trong khi chính màn hình lại hứa.
+ *
+ * Thiếu trường (phiên máy nhận từ trước 0012) thì giữ hành vi cũ: 1 badge.
+ */
+export function localScanMeta(checkpoint, student) {
+  const mssv = student?.mssv ? `${student.mssv} · ` : '';
+  if (checkpoint?.counts_toward_badges === false) {
+    return `${mssv}điểm danh xong — điểm này không cộng badge`;
+  }
+  const w = Number(checkpoint?.badge_weight ?? 1);
+  const now = Number(student?.badge_count ?? 0);
+  return `${mssv}+${w} badge → tổng ${now + w}`;
+}
+
+/** Tiêu đề thẻ hổ phách khi quét trùng. "ĐÃ CÓ BADGE NÀY" chỉ đúng ở điểm có badge. */
+export function duplicateVerdict(checkpoint) {
+  return checkpoint?.counts_toward_badges === false
+    ? 'ĐÃ GHI NHẬN Ở ĐIỂM NÀY RỒI'
+    : 'ĐÃ CÓ BADGE NÀY';
+}
+
+/**
  * Dịch một dòng hàng đợi ĐÃ có trả lời của server thành thẻ kết quả cho màn
  * quét. Trả về null khi chưa có gì đáng thay ("chưa gửi" hay "server lỗi tạm")
  * — người gọi giữ nguyên thẻ đang hiện.

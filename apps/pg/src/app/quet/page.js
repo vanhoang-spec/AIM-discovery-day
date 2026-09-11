@@ -23,7 +23,7 @@ import {
 import { startScanner, feedback, holdWakeLock, IDLE_PAUSE_MS } from '@/lib/scanner';
 import { screenFor } from '@/lib/boot-state';
 import { useUpdateAvailable } from '@/lib/update-check';
-import { resultFromServer } from '@/lib/scan-verdict';
+import { resultFromServer, localScanMeta, duplicateVerdict } from '@/lib/scan-verdict';
 import { canOpenHallDesk, canOpenGiftDesk, needsMove } from '@/lib/device-role';
 import { STATE } from '@atl/scan-queue';
 
@@ -198,6 +198,23 @@ export default function ScanPage() {
         return;
       }
 
+      // [11/09] Máy đứng ở Quầy đổi quà KHÔNG quét badge. DIỄN TẬP 11/09: PG
+      // quầy quà quét ở màn này, được thẻ XANH "ĐÃ GHI NHẬN", và dễ tưởng đã
+      // trao quà — trong khi không có giao dịch quà nào, kho không trừ, SV quay
+      // lại lấy lần nữa vẫn được. Lượt quét đó còn thành một dòng "Quầy đổi
+      // quà +1" trong lịch sử của SV. Ở đây không ghi gì: chỉ chỉ đường.
+      if (canOpenGiftDesk(checkpoint)) {
+        feedback('info');
+        setResult({
+          kind: 'info',
+          verdict: 'ĐÂY LÀ MÁY QUẦY ĐỔI QUÀ',
+          name: 'Lượt quét này KHÔNG trao quà',
+          meta: 'Mở màn QUẦY QUÀ rồi quét lại mã của bạn ấy để trao.',
+          action: { label: 'MỞ QUẦY QUÀ', href: '/qua' },
+        });
+        return;
+      }
+
       const student = rosterRef.current.find((r) => r.seq === verified.studentSeq);
       const q = getQueue();
       const { duplicate, item } = await q.enqueue({
@@ -214,7 +231,7 @@ export default function ScanPage() {
         feedback('amber');
         setResult({
           kind: 'amber',
-          verdict: 'ĐÃ CÓ BADGE NÀY',
+          verdict: duplicateVerdict(checkpoint),
           name: item.student_name ?? student?.name ?? `SV ${verified.studentSeq}`,
           meta: `Ghi nhận lúc ${new Date(item.client_ts).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
             + (item.state === STATE.CONFIRMED ? ' · ✓ server đã xác nhận' : ''),
@@ -241,7 +258,7 @@ export default function ScanPage() {
           kind: 'ok',
           verdict: 'ĐÃ GHI NHẬN',
           name: student.name,
-          meta: `${student.mssv ?? ''} · badge thứ ${(student.badge_count ?? 0) + 1}`,
+          meta: localScanMeta(checkpoint, student),
           pending: true,
           scan_uid: item.scan_uid,
         });
@@ -428,6 +445,20 @@ export default function ScanPage() {
         </div>
       )}
 
+      {/* [11/09] Máy quầy quà mở app là rơi vào màn này. Nói ngay từ trên
+          camera rằng đây không phải chỗ trao quà — trước khi PG kịp quét. */}
+      {canOpenGiftDesk(checkpoint) && (
+        <button
+          type="button"
+          onClick={() => router.push('/qua')}
+          style={{ borderRadius: 0, minHeight: 0, width: '100%', border: 'none',
+                   background: 'var(--amber)', color: 'var(--amber-ink)',
+                   padding: '12px', fontWeight: 700 }}
+        >
+          MÁY QUẦY ĐỔI QUÀ — chạm để mở màn trao quà. Quét ở màn này không trao quà.
+        </button>
+      )}
+
       <div className="camwrap" onClick={() => { if (camera !== 'on') startCamera(); }}>
         <video ref={videoRef} playsInline muted />
         {camera === 'on' && <div className="reticle" />}
@@ -489,9 +520,20 @@ export default function ScanPage() {
               {result.meta}
               {result.pending && <span className="tilde"> · ~ chờ đồng bộ</span>}
             </p>
-            <button className="modal-go" onClick={nextScan} autoFocus>
-              HOÀN TẤT — QUÉT LƯỢT TIẾP THEO
-            </button>
+            {result.action ? (
+              <>
+                <button className="modal-go" onClick={() => router.push(result.action.href)} autoFocus>
+                  {result.action.label}
+                </button>
+                <button className="modal-go" onClick={nextScan} style={{ marginTop: 10, opacity: 0.8 }}>
+                  ĐÓNG
+                </button>
+              </>
+            ) : (
+              <button className="modal-go" onClick={nextScan} autoFocus>
+                HOÀN TẤT — QUÉT LƯỢT TIẾP THEO
+              </button>
+            )}
           </div>
         </div>
       )}

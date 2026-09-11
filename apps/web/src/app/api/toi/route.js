@@ -21,6 +21,7 @@
 
 import { getDb } from '@atl/db';
 import { verifyToken, importKey } from '@atl/qr-token';
+import { historyFrom } from '@/lib/experience';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,7 +101,8 @@ export async function GET(request) {
     // nhận, không phải suy ra từ bộ đếm. voided_at is null: badge đã bị BTC gỡ
     // thì không còn là trải nghiệm đã hoàn thành.
     db.query(
-      `select c.name, c.kind, c.badge_weight, z.name as zone_name, a.awarded_at
+      `select c.name, c.kind, c.badge_weight, c.counts_toward_badges,
+              z.name as zone_name, a.awarded_at
          from attendance a
          join checkpoints c on c.id = a.checkpoint_id and c.event_id = a.event_id
          left join zones z on z.id = c.zone_id and z.event_id = c.event_id
@@ -135,13 +137,9 @@ export async function GET(request) {
         badge_count: reg.badge_count,
         slots_left: special.rows[0]?.slots_left ?? 0,
       },
-      history: history.rows.map((h) => ({
-        name: h.name,
-        kind: h.kind,
-        zone: h.zone_name,
-        badges: h.badge_weight ?? 1,
-        at: h.awarded_at,
-      })),
+      // [11/09] Qua lib/experience.js: chỉ điểm thật sự tính badge mới mang
+      // "+N", quầy quà không phải trải nghiệm. Xem lý do ở đầu file đó.
+      history: historyFrom(history.rows),
     },
     { headers: { 'Cache-Control': 'private, no-store' } },
   );
