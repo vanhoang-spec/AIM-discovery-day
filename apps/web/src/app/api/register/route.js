@@ -14,6 +14,7 @@
 import { getDb } from '@atl/db';
 import { issueQr } from '@/lib/qr';
 import { searchKey } from '@atl/vn-text';
+import { EVENT_NOT_ARCHIVED } from '@/lib/event-visibility';
 
 const CURRENT_YEAR = 2026;
 
