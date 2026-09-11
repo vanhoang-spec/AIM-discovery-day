@@ -34,7 +34,7 @@ import { verifyToken, importKey } from '@atl/qr-token';
 import { searchRoster } from '@atl/vn-text';
 import { getRoster, getSession, getActiveCheckpoint } from '@/lib/session';
 import { canOpenGiftDesk } from '@/lib/device-role';
-import { giftPlan, itemNames } from '@/lib/gift-plan';
+import { giftPlan, itemNames, grantOutcome } from '@/lib/gift-plan';
 import { feedback, holdWakeLock } from '@/lib/scanner';
 import { createDeskCamera } from '@/lib/desk-camera';
 
@@ -133,18 +133,31 @@ export default function GiftCounterPage() {
     if (busy || !tier) return;
     setBusy(true);
     const who = card?.student?.full_name ?? '';
+    // Món dự định lúc bấm — để so với những gì sổ THẬT SỰ ghi.
+    const planned = giftPlan(card).hand;
     try {
       const d = await api({
         action: 'redeem',
         student_seq: card.student.seq,
         gift_tier_id: tier.id,
       });
-      feedback('ok');
       setCard(d);
-      // Nguồn sự thật là `granted` — những dòng server vừa ghi. Nếu vì lý do gì
-      // đó server không trả, thà nói tên bậc vừa bấm còn hơn nói bừa cả hai.
-      const items = d.granted?.length ? d.granted.map((g) => g.name) : [tier.name];
-      setModal({ kind: 'ok', title: 'ĐÃ PHÁT QUÀ', who, items, done: true });
+      // [11/09] PHÁT trước, ĐƯA sau. Ô này là lệnh cho tay PG: chỉ những món
+      // server vừa ghi (`granted`). Món dự định mà sổ không ghi → hổ phách,
+      // dặn KHÔNG đưa. Trước đây PG đưa đồ rồi mới bấm, nên một lượt sổ chỉ ghi
+      // hộp bút vẫn thành túi + bút trên tay SV, và lần quét sau mời trao túi.
+      const { give, missing } = grantOutcome(planned, d.granted, tier);
+      feedback(missing.length ? 'amber' : 'ok');
+      setModal({
+        kind: missing.length ? 'amber' : 'ok',
+        title: 'ĐƯA CHO SV',
+        who,
+        items: give,
+        warn: missing.length
+          ? `KHÔNG đưa: ${missing.join(' + ')} — hệ thống chưa ghi nhận (thường do hết kho). Báo BTC.`
+          : null,
+        done: true,
+      });
     } catch (e) {
       feedback('bad');
       setModal({ kind: 'bad', title: 'CHƯA PHÁT ĐƯỢC', lines: [e.message], who });
@@ -292,13 +305,17 @@ export default function GiftCounterPage() {
               <p className="name">{modal.items.join(' + ')}</p>
             )}
             {modal.items?.length > 0 && modal.who && (
-              <p className="meta">Trao cho {modal.who}</p>
+              <p className="meta">Sinh viên: {modal.who}</p>
+            )}
+            {/* Món dự định mà sổ KHÔNG ghi — nói to, để PG không đưa ra. */}
+            {modal.warn && (
+              <p className="meta" style={{ marginTop: 10, fontWeight: 700 }}>{modal.warn}</p>
             )}
             {!modal.items?.length && modal.lines?.map((l, i) => (
               <p key={i} className={i === 0 ? 'name' : 'meta'} style={{ fontSize: i === 0 ? 22 : undefined }}>{l}</p>
             ))}
             <button className="modal-go" onClick={modal.done ? nextPerson : () => setModal(null)}>
-              {modal.done ? 'HOÀN TẤT — NGƯỜI TIẾP THEO' : 'ĐÓNG'}
+              {modal.done ? 'ĐÃ ĐƯA XONG — NGƯỜI TIẾP THEO' : 'ĐÓNG'}
             </button>
           </div>
         </div>
@@ -366,17 +383,18 @@ function GiftDecision({ plan, busy, onRedeem }) {
   }
 
   // state === 'ready'
+  //
+  // [11/09] Thẻ này chỉ là DỰ KIẾN ("SẼ TRAO"). Đồ chỉ rời bàn sau khi bấm
+  // PHÁT QUÀ và ô ĐƯA CHO SV hiện ra — ô đó đọc từ những dòng sổ vừa ghi. Bản
+  // 10/09 dặn "đưa đủ rồi mới bấm xác nhận": đồ đi trước sổ, và một lượt sổ chỉ
+  // ghi hộp bút vẫn thành túi + bút trên tay SV.
   const low = plan.hand.filter((t) => t.stock === 'low' && t.left != null);
   return (
     <>
       <div className="result ok" style={{ padding: 16, marginTop: 14, borderRadius: 12 }}>
-        <p className="verdict">{plan.already.length ? 'TRAO THÊM' : 'TRAO'}</p>
+        <p className="verdict">{plan.already.length ? 'SẼ TRAO THÊM' : 'SẼ TRAO'}</p>
         <p className="name">{itemNames(plan.hand)}</p>
-        <p className="meta">
-          {plan.hand.length > 1
-            ? `${plan.hand.length} món — đưa đủ rồi mới bấm xác nhận`
-            : 'Đưa cho SV rồi bấm xác nhận'}
-        </p>
+        <p className="meta">Bấm PHÁT QUÀ — máy báo xong mới đưa đồ</p>
       </div>
 
       {plan.already.length > 0 && (
@@ -402,7 +420,7 @@ function GiftDecision({ plan, busy, onRedeem }) {
 
       <button className="primary" style={{ marginTop: 14 }}
         disabled={busy} onClick={() => onRedeem(plan.target)}>
-        XÁC NHẬN ĐÃ TRAO — MỨC {plan.target.required}
+        PHÁT QUÀ — MỨC {plan.target.required}
       </button>
     </>
   );

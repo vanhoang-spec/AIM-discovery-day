@@ -79,3 +79,27 @@ export function giftPlan(card) {
 
 /** "Túi quà + Hộp bút Thiên Long" — câu PG đọc để cầm đồ. */
 export const itemNames = (tiers = []) => tiers.map((t) => t.name).join(' + ');
+
+/**
+ * Sau khi bấm PHÁT QUÀ: đưa món nào, và món nào dự định mà sổ KHÔNG ghi.
+ *
+ * DIỄN TẬP 11/09: SV đủ 9 badge, màn hình hứa "Túi quà + Hộp bút", PG đưa cả
+ * hai rồi mới bấm — nhưng sổ chỉ ghi hộp bút. Quét lại, máy (đúng theo sổ) mời
+ * trao thêm túi. Từ đó luồng là PHÁT trước, đưa sau, và danh sách "đưa cho SV"
+ * đọc từ `granted` — những dòng server thật sự vừa ghi. Món nào dự định mà
+ * không có trong đó thì phải nói to ra, để PG KHÔNG đưa.
+ *
+ * `planned` là plan.hand lúc bấm; `granted` là [{tier, name}] server trả.
+ * Thiếu `granted` (không nên xảy ra) thì coi như chỉ ghi được bậc đích —
+ * thà báo thiếu oan một món còn hơn để PG đưa ra một món sổ không có.
+ */
+export function grantOutcome(planned = [], granted, target = null) {
+  const got = Array.isArray(granted) && granted.length
+    ? granted
+    : (target ? [{ tier: target.tier, name: target.name }] : []);
+  const tiers = new Set(got.map((g) => g.tier));
+  return {
+    give: got.map((g) => g.name),
+    missing: (planned ?? []).filter((t) => !tiers.has(t.tier)).map((t) => t.name),
+  };
+}
