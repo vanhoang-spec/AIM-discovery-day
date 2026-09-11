@@ -232,11 +232,15 @@ export async function startScanner({ video, onCode, onError, onTrackEnd, cooldow
     ok: true,
     decoderKind: decoder.kind,
     pause() { paused = true; },
-    resume() {
+    // keepLast (11/09): quầy quà / quầy vé mở lại việc giải mã sau một lượt tra
+    // cứu KHÔNG chuyển màn (mã sai, mất mạng). Quên mã vừa đọc lúc đó thì chính
+    // cái mã đang chìa trước camera bị đọc lại ngay khung hình kế tiếp và hộp
+    // thoại lỗi bật liên hồi — nên giữ nó để cooldown vẫn có hiệu lực.
+    resume({ keepLast = false } = {}) {
       paused = false;
       // Quên mã vừa đọc, nếu không thì sinh viên tiếp theo chìa ĐÚNG mã đó
       // (hiếm) hay chính em vừa rồi quét lại (thường) sẽ bị cooldown nuốt mất.
-      lastCode = null;
+      if (!keepLast) lastCode = null;
     },
     stop() {
       stopped = true;

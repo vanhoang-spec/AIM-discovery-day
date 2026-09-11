@@ -23,6 +23,9 @@
  * động kèm DANH SÁCH MÓN PHẢI CẦM LÊN (xem `lib/gift-plan.js`), và pop-up sau
  * khi phát đọc từ `granted` do server trả — tức là từ những dòng đã thật sự ghi
  * vào sổ, không phải từ cái nút vừa bấm.
+ *
+ * Camera (11/09): bật khi và chỉ khi màn quét đang hiện — xem `lib/desk-camera.js`
+ * cho lỗi "không quét được người tiếp theo" mà bộ điều khiển đó sinh ra để chữa.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -32,7 +35,8 @@ import { searchRoster } from '@atl/vn-text';
 import { getRoster, getSession, getActiveCheckpoint } from '@/lib/session';
 import { canOpenGiftDesk } from '@/lib/device-role';
 import { giftPlan, itemNames } from '@/lib/gift-plan';
-import { startScanner, feedback, holdWakeLock } from '@/lib/scanner';
+import { feedback, holdWakeLock } from '@/lib/scanner';
+import { createDeskCamera } from '@/lib/desk-camera';
 
 const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
 
@@ -44,6 +48,12 @@ const hhmm = (iso) => {
   return Number.isNaN(d.getTime())
     ? ''
     : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+const CAMERA_HINT = {
+  denied: 'Không mở được camera — dùng ô gõ dưới',
+  broken: 'Bộ đọc mã không khởi động — tải lại trang',
+  starting: 'Đang mở camera…',
 };
 
 export default function GiftCounterPage() {
@@ -60,17 +70,23 @@ export default function GiftCounterPage() {
   const [modal, setModal] = useState(null);
   const [camera, setCamera] = useState('off');
   const videoRef = useRef(null);
-  const scannerRef = useRef(null);
   const keyRef = useRef(null);
+  // MỘT bộ điều khiển camera cho cả vòng đời trang (lỗi 11/09: trước đây handle
+  // của scanner không bao giờ được giữ, camera cũ không tắt và cứ mở lại thẻ
+  // của SV vừa rồi).
+  const camRef = useRef(null);
+  if (!camRef.current) camRef.current = createDeskCamera({ onState: setCamera });
 
   useEffect(() => {
     (async () => {
       const s = await getSession();
       if (!s) { router.replace('/'); return; }
+      // Khoá giải mã phải sẵn TRƯỚC khi màn quét hiện: camera nay tự bật ngay
+      // khi có phiên, và một mã đọc được trước khi có khoá sẽ bị báo sai.
+      keyRef.current = await importKey(process.env.NEXT_PUBLIC_ATL_HMAC_KEY || DEV_KEY);
       setCheckpoint(await getActiveCheckpoint());
       setSession(s);
       setRoster(await getRoster());
-      keyRef.current = await importKey(process.env.NEXT_PUBLIC_ATL_HMAC_KEY || DEV_KEY);
     })();
     const sync = () => setOnline(navigator.onLine);
     sync();
@@ -78,10 +94,11 @@ export default function GiftCounterPage() {
     window.addEventListener('offline', sync);
     let lock;
     holdWakeLock().then((l) => { lock = l; });
+    const cam = camRef.current;
     return () => {
       window.removeEventListener('online', sync);
       window.removeEventListener('offline', sync);
-      scannerRef.current?.stop();
+      cam.stop();
       lock?.release?.().catch(() => {});
     };
   }, [router]);
@@ -144,27 +161,29 @@ export default function GiftCounterPage() {
   );
 
   // ---- scan path ----
-  const startCamera = useCallback(async () => {
-    if (!videoRef.current || scannerRef.current) return;
-    setCamera('starting');
-    const s = await startScanner({
-      video: videoRef.current,
-      onCode: async (raw) => {
-        const v = await verifyToken(raw, keyRef.current);
-        if (!v.valid) {
-          feedback('bad');
-          setModal({ kind: 'bad', title: 'MÃ KHÔNG HỢP LỆ', lines: ['Quét lại, hoặc gõ tên/SĐT ở ô dưới'] });
-          return;
-        }
-        scannerRef.current?.stop();
-        scannerRef.current = null;
-        setCamera('off');
-        check(v.studentSeq);
-      },
-      onError: () => setCamera('denied'),
-    });
-    if (s.ok) setCamera('on');
+  const onScan = useCallback(async (raw) => {
+    const v = await verifyToken(raw, keyRef.current);
+    if (!v.valid) {
+      feedback('bad');
+      setModal({ kind: 'bad', title: 'MÃ KHÔNG HỢP LỆ', lines: ['Quét lại, hoặc gõ tên/SĐT ở ô dưới'] });
+      return;
+    }
+    await check(v.studentSeq);
   }, [check]);
+
+  const startCamera = useCallback(
+    () => camRef.current.start(videoRef.current, onScan),
+    [onScan],
+  );
+
+  // Camera sáng khi và chỉ khi màn quét đang hiện. Thẻ SV hiện lên — dù do
+  // quét hay gõ tay — là tắt; bấm NGƯỜI TIẾP THEO là tự bật lại, PG không phải
+  // chạm vào khung camera nữa.
+  const scanning = session !== undefined && canOpenGiftDesk(checkpoint) && !card;
+  useEffect(() => {
+    if (scanning) startCamera();
+    else camRef.current.stop();
+  }, [scanning, startCamera]);
 
   if (session === undefined) return null;
 
@@ -231,8 +250,7 @@ export default function GiftCounterPage() {
             <video ref={videoRef} playsInline muted style={{ width: '100%', borderRadius: 12 }} />
             {camera !== 'on' && (
               <p className="muted" style={{ textAlign: 'center' }}>
-                {camera === 'denied' ? 'Không mở được camera — dùng ô gõ dưới'
-                  : 'Chạm để quét QR'}
+                {CAMERA_HINT[camera] ?? 'Chạm để quét QR'}
               </p>
             )}
           </div>
