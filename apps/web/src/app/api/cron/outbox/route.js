@@ -31,15 +31,28 @@ const BATCH = 40; // 40/min = 2.400/giờ — dư cho burst đăng ký sau một
 
 const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
 
-async function qrPngBase64(eventId, seq) {
+async function studentToken(eventId, seq) {
   const secret = process.env.ATL_HMAC_KEY;
   if (!secret && process.env.NODE_ENV === 'production') {
     throw new Error('ATL_HMAC_KEY is required in production');
   }
   const key = await importKey(secret || DEV_KEY);
-  const token = await mintToken({ eventInstance: eventId, studentSeq: seq }, key);
+  return mintToken({ eventInstance: eventId, studentSeq: seq }, key);
+}
+
+async function qrPngBase64(token) {
   const dataUrl = await renderPNGDataURL(token, { scale: 8 });
   return dataUrl.slice(dataUrl.indexOf(',') + 1);
+}
+
+/**
+ * [14/11, AIM] Link riêng mở thẳng trang điểm: /toi#t=<mã QR>. Mã nằm sau dấu
+ * # nên không đi qua máy chủ/CDN/nhật ký; /toi đọc nó, đổi lấy thẻ tham dự
+ * (lib/toi-link.js) rồi xoá khỏi thanh địa chỉ. Ranh giới tin cậy y như ảnh QR
+ * đính kèm cùng thư — ai cầm được mã QR vốn đã xem được điểm của người đó.
+ */
+function myUrlFor(site, token) {
+  return `${site}/toi#t=${encodeURIComponent(token)}`;
 }
 
 export async function GET(request) {
@@ -57,7 +70,9 @@ export async function GET(request) {
     return Response.json({ skipped: 'RESEND_API_KEY / EMAIL_FROM not configured' });
   }
 
-  const site = process.env.NEXT_PUBLIC_SITE_URL || 'https://atl.aimacademy.vn';
+  // [14/11] atl.aimacademy.vn đã không còn trên DNS; tên miền đang chạy là
+  // app.awakenthelions.net. Biến môi trường vẫn thắng nếu có.
+  const site = (process.env.NEXT_PUBLIC_SITE_URL || 'https://app.awakenthelions.net').replace(/\/+$/, '');
   const db = await getDb();
 
   const batch = await db.query(`select * from claim_outbox_batch($1)`, [BATCH]);
@@ -93,11 +108,12 @@ export async function GET(request) {
         continue;
       }
 
-      const urls = { agendaUrl: `${site}/lich`, myUrl: `${site}/toi` };
+      const token = await studentToken(row.event_id, student.seq);
+      const urls = { agendaUrl: `${site}/lich`, myUrl: myUrlFor(site, token) };
       const msg = row.template === 'confirm'
         ? renderConfirmEmail({
             student, ev, ...urls,
-            qrPngBase64: await qrPngBase64(row.event_id, student.seq),
+            qrPngBase64: await qrPngBase64(token),
           })
         : renderReminderEmail({ template: row.template, student, ev, ...urls });
 

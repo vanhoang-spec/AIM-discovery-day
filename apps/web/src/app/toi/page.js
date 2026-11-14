@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { tokenFromLocation } from '../../lib/toi-link.js';
 
 const PASS_KEY = 'atl_pass_v1';
 const PROGRESS_KEY = 'atl_progress_v1';
@@ -178,17 +179,64 @@ function ExperienceLog({ history }) {
 export default function MyQrPage() {
   const [pass, setPass] = useState(undefined); // undefined = loading, null = none
   const [progress, setProgress] = useState(null);
+  const [linkFailed, setLinkFailed] = useState(false);
   const timer = useRef(null);
 
   useEffect(() => {
+    let local = null;
+    let localProgress = null;
     try {
       const raw = localStorage.getItem(PASS_KEY);
-      setPass(raw ? JSON.parse(raw) : null);
+      local = raw ? JSON.parse(raw) : null;
       const prog = localStorage.getItem(PROGRESS_KEY);
-      if (prog) setProgress(JSON.parse(prog));
+      localProgress = prog ? JSON.parse(prog) : null;
     } catch {
-      setPass(null);
+      local = null;
     }
+
+    // [14/11] Link riêng trong email (/toi#t=<mã QR>): đổi mã lấy thẻ rồi lưu
+    // như lúc vừa đăng ký — SV khỏi điền lại form mới xem được điểm.
+    const linkToken = tokenFromLocation(window.location.hash, window.location.search);
+    const clearLink = () => {
+      try { window.history.replaceState(null, '', window.location.pathname); } catch {}
+    };
+    if (!linkToken || local?.token === linkToken) {
+      if (linkToken) clearLink();
+      setPass(local);
+      if (localProgress) setProgress(localProgress);
+      return undefined;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/toi/pass?t=${encodeURIComponent(linkToken)}`);
+        if (!res.ok) throw new Error(`pass ${res.status}`);
+        const data = await res.json();
+        const fresh = {
+          token: data.token,
+          qr_svg: data.qr_svg,
+          lookup_code: data.lookup_code,
+          full_name: data.full_name,
+          event_id: data.event_id,
+          saved_at: Date.now(),
+        };
+        try {
+          localStorage.setItem(PASS_KEY, JSON.stringify(fresh));
+          localStorage.removeItem(PROGRESS_KEY); // điểm cũ là của thẻ khác
+        } catch {}
+        clearLink();
+        if (!cancelled) setPass(fresh);
+      } catch {
+        // Giữ #t= trên thanh địa chỉ: tải lại trang là thử lại được.
+        if (!cancelled) {
+          setLinkFailed(true);
+          setPass(local);
+          if (local && localProgress) setProgress(localProgress);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const refresh = useCallback(async (token) => {
@@ -235,6 +283,22 @@ export default function MyQrPage() {
   }, [pass]);
 
   if (pass === undefined) return null;
+
+  if (pass === null && linkFailed) {
+    return (
+      <main className="wrap">
+        <h1>Chưa mở được trang điểm</h1>
+        <p className="sub">
+          Mạng đang yếu hoặc link trong email bị cắt mất. Thử tải lại trang; nếu vẫn
+          không được, lấy lại mã bằng email hoặc SĐT đã đăng ký.
+        </p>
+        <button className="primary" type="button" onClick={() => window.location.reload()}>
+          Thử lại
+        </button>
+        <a href="/dang-ky"><button className="ghost" type="button">Lấy mã QR của mình</button></a>
+      </main>
+    );
+  }
 
   if (pass === null) {
     return (

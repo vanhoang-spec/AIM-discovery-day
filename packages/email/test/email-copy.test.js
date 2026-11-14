@@ -123,6 +123,24 @@ describe('thư xác nhận kiểu AIM', () => {
     assert.match(msg.text, /mã dự phòng này cho nhân viên: K7M-3QX/);
   });
 
+  test('[14/11 AIM] có nút xem điểm cá nhân — link riêng từng SV, không phải /dang-ky', () => {
+    const url = 'https://app.awakenthelions.net/toi#t=AbC-_123';
+    const m = renderConfirmEmail({ ...base, myUrl: url });
+    assert.ok(m.html.includes(`href="${url}"`));
+    assert.ok(m.html.includes('Xem điểm và mã QR của bạn'));
+    assert.ok(m.text.includes(url));
+    assert.doesNotMatch(m.html, /\/dang-ky/);
+    // Không có myUrl thì không có nút rỗng.
+    const bare = renderConfirmEmail({ ...base, myUrl: undefined });
+    assert.doesNotMatch(bare.html, /Xem điểm và mã QR/);
+    assert.doesNotMatch(bare.html, /href=""/);
+  });
+
+  test('link xem điểm bị escape trong thuộc tính href', () => {
+    const m = renderConfirmEmail({ ...base, myUrl: 'https://x.test/toi#t="><script>' });
+    assert.doesNotMatch(m.html, /"><script>/);
+  });
+
   test('tên có <script> bị escape trong HTML, nguyên vẹn trong text', () => {
     assert.doesNotMatch(msg.html, /<script>/i);
     assert.match(msg.html, /Trần &lt;script&gt;alert\(1\)&lt;\/script&gt; &amp; Bình/);
@@ -190,7 +208,7 @@ describe('thư nhắc 6h sáng kiểu AIM', () => {
     assert.equal(msg.attachments.length, 0);
     assert.doesNotMatch(msg.html, /cid:qr-code/);
     assert.match(msg.html, /href="https:\/\/atl\.aimacademy\.vn\/toi"/);
-    assert.match(msg.text, /Mở mã QR của bạn: https:\/\/atl\.aimacademy\.vn\/toi/);
+    assert.match(msg.text, /Xem điểm và mã QR của bạn: https:\/\/atl\.aimacademy\.vn\/toi/);
   });
 
   test('không còn chữ ATL2026', () => {

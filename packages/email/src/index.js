@@ -69,9 +69,9 @@ function fmtEventDate(startsAt) {
  * name, venue_name, city, starts_at; `qrPngBase64` is the raw base64 (no
  * data: prefix) of the QR PNG; `agendaUrl` links to /lich.
  */
-export function renderConfirmEmail({ student, ev, qrPngBase64, agendaUrl }) {
+export function renderConfirmEmail({ student, ev, qrPngBase64, agendaUrl, myUrl }) {
   const copy = parseEmailCopy(ev.email_copy);
-  if (copy) return renderAimConfirm({ student, ev, copy, qrPngBase64 });
+  if (copy) return renderAimConfirm({ student, ev, copy, qrPngBase64, myUrl });
 
   const code = fmtCode(student.lookup_code);
   const date = fmtEventDate(ev.starts_at);
@@ -419,8 +419,26 @@ ${rows}
 </body></html>`;
 }
 
+/**
+ * [14/11, AIM yêu cầu] Nút mở trang điểm cá nhân. Đợt 12/09 SV phải điền lại
+ * form đăng ký mới vào xem được điểm; `myUrl` giờ là link riêng từng người
+ * (/toi#t=<mã QR>) nên bấm là thấy ngay badge + mã QR, máy nào cũng được.
+ */
+const AIM_MY_LABEL = 'Xem điểm và mã QR của bạn';
+
+function aimButton(url, label) {
+  if (!url) return '';
+  return `  <tr><td style="padding:12px 28px 8px;">
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+      <td bgcolor="#864c3c" style="background:#864c3c;border-radius:4px;">
+        <a href="${escAttr(url)}" style="display:inline-block;padding:12px 22px;${FONT}font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;">${esc(label)}</a>
+      </td>
+    </tr></table>
+  </td></tr>`;
+}
+
 /** Thư xác nhận kiểu AIM. Vẫn đính kèm QR (cid) + mã dự phòng như mẫu cũ. */
-function renderAimConfirm({ student, ev, copy, qrPngBase64 }) {
+function renderAimConfirm({ student, ev, copy, qrPngBase64, myUrl }) {
   const code = fmtCode(student.lookup_code);
   const name = esc(student.full_name);
 
@@ -433,6 +451,7 @@ function renderAimConfirm({ student, ev, copy, qrPngBase64 }) {
     ``,
     `Nếu không mở được ảnh QR, đọc mã dự phòng này cho nhân viên: ${code}`,
     ``,
+    ...(myUrl ? [`${AIM_MY_LABEL} (badge đã thu thập, quà đã đủ điều kiện): ${myUrl}`, ``] : []),
     stripTags(AIM_NOTE_HTML),
     ``,
     ...aimClosingText(copy),
@@ -448,6 +467,7 @@ function renderAimConfirm({ student, ev, copy, qrPngBase64 }) {
     <div style="font-family:Courier,monospace;font-size:26px;font-weight:bold;letter-spacing:4px;color:#171a1f;padding-top:12px;">${esc(code)}</div>
     <div style="${FONT}font-size:12px;color:#7b8089;padding-top:4px;">Mã dự phòng — đọc cho nhân viên khi không quét được</div>
   </td></tr>`,
+    aimButton(myUrl, AIM_MY_LABEL),
     aimNoteBox(),
     aimClosingHtml(copy),
   ].join('\n');
@@ -488,21 +508,13 @@ function renderAimReminder({ template, student, ev, copy, myUrl }) {
     AIM_REMINDER_KEEP,
     ...facts.map(([k, v]) => `- ${k} ${v}`),
     ``,
-    ...(myUrl ? [`Mở mã QR của bạn: ${myUrl}`, ``] : []),
+    ...(myUrl ? [`${AIM_MY_LABEL}: ${myUrl}`, ``] : []),
     stripTags(AIM_NOTE_HTML),
     ``,
     ...aimClosingText(copy),
   ].join('\n');
 
-  const button = myUrl
-    ? `  <tr><td style="padding:12px 28px 8px;">
-    <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-      <td bgcolor="#864c3c" style="background:#864c3c;border-radius:4px;">
-        <a href="${escAttr(myUrl)}" style="display:inline-block;padding:12px 22px;${FONT}font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;">Mở mã QR của bạn</a>
-      </td>
-    </tr></table>
-  </td></tr>`
-    : '';
+  const button = aimButton(myUrl, AIM_MY_LABEL);
 
   const rows = [
     para(`Xin chào <b>${name}</b>,`, '16px 28px 8px'),
