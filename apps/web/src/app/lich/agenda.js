@@ -9,6 +9,7 @@
 
 import { getDb } from '@atl/db';
 import { EVENT_NOT_ARCHIVED } from '@/lib/event-visibility';
+import { eventWhen } from '@/lib/event-when';
 import Link from 'next/link';
 
 const VN_TZ_MS = 7 * 3600 * 1000;
@@ -51,7 +52,7 @@ async function readAgenda() {
   // đăng ký online, trang lịch của Hà Nội và TP.HCM trống trơn. DIỄN TẬP vẫn
   // ẩn — giờ vì nó đã khoá.
   const events = (await db.query(
-    `select e.id, e.slug, e.name, e.venue_name, e.city, e.starts_at
+    `select e.id, e.slug, e.name, e.venue_name, e.city, e.starts_at, e.ends_at
        from events e
       where ${EVENT_NOT_ARCHIVED}
       order by e.id`,
@@ -116,9 +117,11 @@ export async function AgendaView({ view }) {
   return (
     <main className="wrap agenda">
       <header className="agenda-head">
-        <p className="eyebrow">Awaken The Lions 2026 · Discovery Day</p>
+        <p className="eyebrow">{events.length === 1 ? events[0].name : 'Discovery Day'}</p>
         <h1>Lịch hoạt động</h1>
-        <p className="muted">8h00–17h00 · Thứ bảy 12/09/2026</p>
+        {events.length === 1 && eventWhen(events[0]) && (
+          <p className="muted">{eventWhen(events[0])}</p>
+        )}
         <nav className="agenda-tabs" aria-label="Chế độ xem">
           <Link href="/lich" className={view === 'time' ? 'tab on' : 'tab'}>Theo giờ</Link>
           <Link href="/lich/khu-vuc" className={view === 'zone' ? 'tab on' : 'tab'}>

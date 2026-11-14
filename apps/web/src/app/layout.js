@@ -21,7 +21,7 @@ const robotoSlab = Roboto_Slab({
 export const metadata = {
   title: BRAND.eventTitle,
   description:
-    'Đăng ký tham gia Discovery Day 12/09/2026 tại FTU Hà Nội và TP.HCM — nhận mã QR, thu thập badge, đổi quà.',
+    'Đăng ký tham gia Discovery Day — nhận mã QR, thu thập badge, đổi quà.',
 };
 
 export const viewport = {

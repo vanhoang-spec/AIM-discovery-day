@@ -22,7 +22,8 @@ export async function GET() {
     // [11/09] Ngoại lệ duy nhất: sự kiện đã KHOÁ (DIỄN TẬP) biến mất hẳn, kể cả
     // khỏi form tại cổng — nhân sự chọn nhầm là SV thật cầm mã QR diễn tập.
     db.query(
-      `select e.id, e.slug, e.name, e.venue_name, e.city, e.is_registration_open
+      `select e.id, e.slug, e.name, e.venue_name, e.city, e.is_registration_open,
+              e.starts_at, e.ends_at
          from events e
         where ${EVENT_NOT_ARCHIVED}
         order by e.id`),

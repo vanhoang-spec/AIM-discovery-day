@@ -47,7 +47,12 @@ describe('choosableEvents', () => {
 
   test('fallback rows carry no flag and stay selectable', () => {
     assert.ok(FALLBACK_EVENTS.every((e) => e.is_registration_open === undefined));
-    assert.equal(choosableEvents(FALLBACK_EVENTS, false).length, 2);
+    assert.equal(choosableEvents(FALLBACK_EVENTS, false).length, FALLBACK_EVENTS.length);
+  });
+
+  test('fallback không còn liệt kê sự kiện 12/09 đã khoá (Hà Nội id 1, TP.HCM id 2)', () => {
+    assert.ok(FALLBACK_EVENTS.length >= 1);
+    assert.ok(FALLBACK_EVENTS.every((e) => e.id !== 1 && e.id !== 2));
   });
 });
 

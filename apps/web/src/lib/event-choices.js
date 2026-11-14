@@ -18,10 +18,14 @@
  * refdata now returns every event with its flag and the choice is made here.
  */
 
-/** Offline fallback: refdata unreachable. No flag, so both stay selectable. */
+/**
+ * Offline fallback: refdata unreachable. No flag, so every row stays selectable.
+ * PHẢI sửa theo từng mùa: chỉ liệt kê sự kiện đang nhận đăng ký. [14/11] Hà Nội
+ * và TP.HCM (12/09) đã khoá — để chúng ở đây thì SV mạng yếu chọn được một
+ * sự kiện mà server sẽ từ chối.
+ */
 export const FALLBACK_EVENTS = [
-  { id: 1, city: 'Hà Nội' },
-  { id: 2, city: 'TP.HCM' },
+  { id: 4, city: 'TP.HCM', name: 'Discovery Day - UEF', venue_name: 'UEF campus 141-145 Điện Biên Phủ' },
 ];
 
 /**

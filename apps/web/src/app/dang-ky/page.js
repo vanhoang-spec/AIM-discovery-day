@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { matchesQuery, scoreMatch } from '@atl/vn-text';
 import { choosableEvents, isOnlineClosed } from '../../lib/event-choices.js';
+import { eventWhen } from '../../lib/event-when.js';
 
 const DRAFT_KEY = 'atl_reg_draft_v1';
 const PASS_KEY = 'atl_pass_v1';
@@ -183,6 +184,14 @@ export default function RegisterPage() {
   // file for what broke and why the walk-in desk must keep working.
   const eventChoices = choosableEvents(ref?.events, walkin);
   const onlineClosed = isOnlineClosed(ref?.events, walkin, ref !== null);
+  // [14/11] Ngày giờ trên đầu form lấy theo sự kiện, không viết cứng: một sự
+  // kiện thì hiện luôn, nhiều sự kiện thì theo ô SV đang chọn.
+  const shownEvent = eventChoices.length === 1
+    ? eventChoices[0]
+    : eventChoices.find((e) => String(e.id) === String(form.event_id));
+  const shownWhen = eventWhen(shownEvent);
+  const subLine = [shownEvent?.name ?? 'Discovery Day', shownWhen, shownEvent?.venue_name, 'miễn phí']
+    .filter(Boolean).join(' · ');
 
   // An empty radio group under a required label is a dead end: the student
   // fills everything, presses submit and is told to pick an event that is not
@@ -194,7 +203,7 @@ export default function RegisterPage() {
         <div className="banner-err" role="status">
           <strong>Đăng ký online đang tạm đóng.</strong>
           <p style={{ margin: '8px 0 0' }}>
-            Bạn vẫn tham dự được: đến thẳng cổng sự kiện sáng Thứ Bảy 12/09, quét mã QR
+            Bạn vẫn tham dự được: đến thẳng cổng sự kiện vào sáng ngày diễn ra, quét mã QR
             trên poster để lấy mã tham dự ngay tại chỗ. Không cần đăng ký trước.
           </p>
         </div>
@@ -211,7 +220,7 @@ export default function RegisterPage() {
       <p className="sub">
         {walkin
           ? 'Bốn ô là xong — nhận mã QR ngay, vào cổng luôn. Thông tin còn lại bổ sung sau.'
-          : 'Awaken The Lions 2026 · Thứ Bảy 12/09 · 8h–17h · miễn phí'}
+          : subLine}
       </p>
 
       {topError && <div className="banner-err" role="alert">{topError}</div>}
@@ -226,7 +235,7 @@ export default function RegisterPage() {
                   checked={String(form.event_id) === String(e.id)}
                   onChange={() => set('event_id')(e.id)}
                 />
-                {e.city}
+                {e.venue_name ?? e.city}
               </label>
             ))}
           </div>
@@ -501,7 +510,7 @@ function Success({ data }) {
       <p className="muted">
         Mã 6 ký tự <b>{code}</b> dùng khi máy bạn hết pin — đọc cho nhân viên tại
         quầy là được. Quên hết mọi thứ cũng không sao: nhân viên tra được bằng số
-        điện thoại bạn vừa nhập. Hẹn gặp bạn ngày 12/09!
+        điện thoại bạn vừa nhập. Hẹn gặp bạn tại sự kiện!
       </p>
     </main>
   );
