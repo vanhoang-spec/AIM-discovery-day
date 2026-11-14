@@ -3,6 +3,16 @@
 Quy ước: sửa package này thì thêm một dòng vào đây trong CÙNG commit.
 Mốc ổn định của cả engine là git tag `engine-vX.Y.Z` — xem docs/FORK-PLAYBOOK.md.
 
+## 1.1.0 — 2026-11-14
+- Mẫu thư theo sự kiện: `events.email_copy` (migration 0016) có giá trị thì
+  `renderConfirmEmail` / `renderReminderEmail` / `subjectFor` dùng mẫu kiểu AIM,
+  mọi chữ riêng của sự kiện lấy từ JSON (`parseEmailCopy` ghi shape từng trường).
+  NULL → mẫu ATL2026 cũ, test ghim sha256 đầu ra trước 0016 nên không đổi một
+  byte. Mẫu AIM chỉ có `confirm` (vẫn QR cid + mã dự phòng) và `morning` (không
+  đính kèm, có nút mở /toi); D-3 / D-1 throw thay vì gửi câu "sắp bắt đầu" sai
+  ngày. Ví dụ JSON: test/fixtures/discovery-day-1711.json. Test mới:
+  test/email-copy.test.js.
+
 ## 1.0.2 — 2026-09-05
 - `unsubscribeHeaders()` + truyền `headers` xuống Resend. Máy chủ nhận đọc
   việc THIẾU `List-Unsubscribe` như dấu hiệu gửi hàng loạt không cho ai thoát ra —

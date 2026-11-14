@@ -1,7 +1,10 @@
 /**
- * Sinh hai file SQL dán-một-lần cho Supabase production:
+ * Sinh các file SQL dán-một-lần cho Supabase production:
  *
  *   supabase/production-init.sql  — toàn bộ migration 0001→hiện tại, đúng thứ tự
+ *                                   (database MỚI)
+ *   supabase/production-patch-NNNN.sql — CHỈ migration mới nhất, cho database
+ *                                   production đang chạy
  *   supabase/production-seed.sql  — CHỈ dữ liệu nền production: trường, tỉnh,
  *                                   2 sự kiện (sinh ra ở trạng thái ĐÓNG đăng ký)
  *
@@ -24,6 +27,24 @@ const init = [
   ...files.map((f) => `-- ═══════════ ${f} ═══════════\n${readFileSync(`supabase/migrations/${f}`, 'utf8')}`),
 ].join('\n');
 writeFileSync('supabase/production-init.sql', init);
+
+// File vá cho database production ĐANG CHẠY: chỉ migration mới nhất, bọc một
+// transaction (lỗi giữa chừng thì không có gì được áp). production-init.sql
+// chỉ dành cho database MỚI — dán nó lên database đang chạy là hỏng.
+const latest = files[files.length - 1];
+const patchFile = `supabase/production-patch-${latest.slice(0, 4)}.sql`;
+writeFileSync(patchFile, [
+  `-- SINH TỰ ĐỘNG từ supabase/migrations/${latest} — đừng sửa tay.`,
+  `-- Tái sinh: node scripts/build-production-sql.mjs`,
+  `-- Dán vào Supabase SQL Editor của database production ĐANG CHẠY và Run MỘT lần.`,
+  `-- Cả file là một transaction: lỗi giữa chừng thì không có gì được áp.`,
+  '',
+  'begin;',
+  '',
+  readFileSync(`supabase/migrations/${latest}`, 'utf8'),
+  'commit;',
+  '',
+].join('\n'));
 
 const seed = `-- SINH TỰ ĐỘNG — dữ liệu nền production. Dán sau production-init.sql.
 -- Chỉ gồm: trường, tỉnh, 2 sự kiện (ĐÓNG đăng ký — mở bằng tab Vận hành).
@@ -54,4 +75,4 @@ ${PROVINCES.map(([c, n]) => `insert into ref_provinces (code, name, search_key) 
 --   select count(*) from ref_provinces;                   → ${PROVINCES.length}
 `;
 writeFileSync('supabase/production-seed.sql', seed);
-console.log(`init: ${files.length} migration, ${(init.length / 1024).toFixed(0)} KB · seed: ${SCHOOLS.length} trường + ${PROVINCES.length} tỉnh + 2 sự kiện`);
+console.log(`init: ${files.length} migration, ${(init.length / 1024).toFixed(0)} KB · patch: ${patchFile} · seed: ${SCHOOLS.length} trường + ${PROVINCES.length} tỉnh + 2 sự kiện`);

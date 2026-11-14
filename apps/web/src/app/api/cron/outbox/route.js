@@ -13,6 +13,9 @@
  *
  * The QR is re-minted per send, not stored: mintToken is deterministic
  * (HMAC over event + seq), so a retry attaches a byte-identical PNG.
+ *
+ * The template is chosen at SEND time from events.email_copy (0016), not at
+ * queue time: set the event's copy before its first confirmation goes out.
  */
 
 import { getDb } from '@atl/db';
@@ -71,8 +74,11 @@ export async function GET(request) {
         continue;
       }
 
+      // email_copy (0016): NULL → mẫu ATL2026 cũ; có giá trị → mẫu kiểu AIM.
+      // Cột này phải có trên production TRƯỚC khi deploy bản code này —
+      // thiếu cột là mọi thư trong outbox nổ ở đây và lùi lịch thử lại.
       const evR = await db.query(
-        `select name, venue_name, city, starts_at from events where id = $1`,
+        `select name, venue_name, city, starts_at, ends_at, email_copy from events where id = $1`,
         [row.event_id],
       );
       const stR = await db.query(
