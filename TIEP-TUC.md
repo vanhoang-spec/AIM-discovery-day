@@ -8,6 +8,42 @@ File này để mở lại công việc từ máy khác (điện thoại, máy k
 
 ---
 
+## ĐANG LÀM DỞ (21/11/2026 00:10) — xuất dữ liệu nghiệm thu cho AIM
+
+Chủ muốn: **toàn bộ dữ liệu ra CSV, tách riêng từng sự kiện AIM tổ chức** (HN 12/09, HCM 12/09,
+UEF 17/11 — bỏ event 3 diễn tập) để gửi AIM nghiệm thu. Có thể phiên sau chạy trên tài khoản
+Claude khác cùng máy này: mọi file dưới đây nằm trên ổ D:, đọc thẳng được.
+
+**Thư mục dữ liệu (NGOÀI repo, có họ tên / email / SĐT — không đưa vào git):**
+`D:\AI_App_Embassy\AIM Academy\ATL2026-du-lieu-2026-11-20\bang-tho\`
+- `_so-dong.json` — số dòng 24 bảng, đếm trên production 20/11 bằng `_dem-dong.sql`
+  (students 2401, registrations 2414, attendance 6027, ledger_events 6140, gift_redemptions 1558,
+  notification_outbox 2398…; golden_hours / surveys / survey_responses / teams = 0).
+- `phan-1.sql`, `phan-2.sql` — sinh bằng `node scripts/export-bundle-sql.mjs <thư-mục>`; SELECT chỉ
+  đọc, mỗi dòng kết quả = tối đa 500 dòng của 1 bảng dạng JSON. Đã chạy trên SQL Editor 20/11:
+  phần 1 ra **33 dòng**, phần 2 ra **35 dòng**, không lỗi.
+
+**Đang chờ chủ:** ở 2 tab Supabase SQL Editor, bấm *Export → Download CSV* (agent KHÔNG tải được:
+Chrome của chủ bật "hỏi nơi lưu từng file" và extension không bấm được hộp Save As — đã thử 2 lần).
+File tải về vào `bang-tho\` hoặc `D:\Downloads` (tên kiểu `Supabase Snippet ….csv`, dòng đầu
+`bang,phan,du_lieu`). Mất 2 tab thì mở lại SQL Editor, dán `phan-1.sql` / `phan-2.sql`, Run, Export.
+
+**Khi có 2 file:** chuyển vào `bang-tho\`, rồi chạy
+`node scripts/export-event-csv.mjs "<…>\bang-tho" "<…>\ATL2026-du-lieu-2026-11-20\gui-AIM" --events=1,2,4`
+(xem tên sự kiện in ra để chắc id 1 = HN, 2 = HCM, 4 = UEF). Script tự dừng nếu bảng nào lệch số dòng
+so với `_so-dong.json` hoặc cột khác lược đồ. Ra mỗi sự kiện 1 thư mục: `00-tong-quan` … `16-doi-thi`
+(.csv UTF-8 BOM) + 1 file .xlsx gộp. Đối chiếu `00-tong-quan.csv` với số liệu cuối:
+HN 782 đăng ký / 342 SV có badge / 311 lượt quà · HCM 1.116 / 731 / 627 · UEF 498 / 474 / 618.
+Rồi: viết `DOC-TRUOC.txt` cho gói dữ liệu, `SHA256SUMS.txt`, báo chủ gửi AIM qua kênh riêng tư.
+Script đã thử trên PGlite (cả 2 cách: CSV từng bảng và gói gộp, ra kết quả giống nhau).
+
+**Gói mã nguồn bàn giao (xong 20/11, đã kiểm 506/506 test từ bản giải nén):**
+`D:\AI_App_Embassy\AIM Academy\ATL2026-ban-giao-2026-11-20\` — `.zip` mã nguồn, `.bundle` git đủ lịch sử,
+`DOC-TRUOC.txt`, `SHA256SUMS.txt`. Chủ gửi máy chủ TCM (cả 3 file) và AIM (.zip). Gói này dựng từ
+commit `02f86f3`; hai script xuất dữ liệu ở trên commit sau đó — không bắt buộc dựng lại gói.
+
+---
+
 ## Đang ở đâu (cập nhật 20/11/2026)
 
 Commit code gần nhất: `85a50d4` (14/11) · **506 test xanh** (đo trong lần deploy 14/11).
@@ -40,7 +76,9 @@ App PG lần deploy cuối là **11/09** (đợt UEF không sửa app PG).
    494 gửi được, **4 lỗi** do email SV nhập sai (3 sai định dạng, 1 có dấu) — sự kiện đã qua, chỉ
    sửa nếu AIM muốn 4 SV đó xem điểm qua link. `registrations.checked_in_at` = 0 ở **mọi** sự kiện,
    kể cả 12/09 → không phải lỗi riêng UEF; đếm người có mặt theo badge. Event 4 chưa khoá (HN/HCM đã khoá).
-2. **Chưa có bản sao lưu nào sau sự kiện.** `scripts/backup-db.mjs` (chỉ đọc, ghi ra
+2. **Sao lưu không cần mật khẩu: xem mục "ĐANG LÀM DỞ" ở đầu file** (gói gộp qua SQL Editor —
+   đủ mọi bảng, có đối chiếu số dòng). Cách cũ bên dưới vẫn đúng nếu sau này cần `pg` trực tiếp.
+   `scripts/backup-db.mjs` (chỉ đọc, ghi ra
    `../ATL2026-backups/<ngày_giờ>/`, NGOÀI repo vì có họ tên/email/SĐT) chưa chạy lần nào. Vướng:
    **không ai nhớ mật khẩu database**, và `DATABASE_URL` trên Vercel là biến *Sensitive* (không xem /
    copy lại được). Muốn sao lưu phải đặt lại mật khẩu Supabase → sửa `DATABASE_URL` ở **cả hai**
@@ -62,6 +100,9 @@ App PG lần deploy cuối là **11/09** (đợt UEF không sửa app PG).
 - **Cách đọc số liệu đang dùng được:** Supabase SQL Editor trên Chrome của chủ (đã đăng nhập),
   chỉ chạy `SELECT` đếm tổng, không in họ tên / email / SĐT. Làm 20/11 bằng agent Sonnet.
 - Đừng bấm *Reset database password* khi chưa sẵn sàng sửa cả hai project Vercel — app mất kết nối ngay.
+- Agent Chrome: `monaco` chưa có ngay khi trang SQL Editor vừa mở — chờ tải xong; Ctrl+Enter không chạy,
+  phải bấm nút Run. Lưới kết quả tự giới hạn 100 dòng ("Limit to only 100 rows") → câu nào trả nhiều
+  dòng phải gộp (như `phan-*.sql`). Agent không tải file về được (xem mục đầu file).
 - Đọc được không cần quyền: `https://app.awakenthelions.net/api/refdata` (sự kiện đang hiện trên
   form, công khai) và `gh run list` (CI + deploy).
 
