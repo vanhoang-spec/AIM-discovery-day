@@ -18,7 +18,7 @@ Commit code gần nhất: `85a50d4` (14/11) · **506 test xanh** (đo trong lầ
 |---|---|---|
 | Awaken The Lions — Hà Nội + TP.HCM | 12/09/2026 | 1.211 SV nhập qua 3 đợt, 0 lỗi. Hai sự kiện đã **khoá** (`is_archived`) |
 | Event 3 — sân diễn tập | 09–11/09 | Đã khoá, ẩn khỏi mọi danh sách chọn |
-| Discovery Day - UEF (event 4) | 17/11/2026, 8h00–17h30 | Đăng ký đã đóng. **Chưa có số liệu sau sự kiện** (xem "Còn lửng") |
+| Discovery Day - UEF (event 4) | 17/11/2026, 8h00–17h30 | 498 đăng ký (493 ngay trong ngày 17/11) · 474 SV có badge (1.078 lượt quét) · 618 lượt nhận quà (bậc 7: 366, bậc 8: 252). Đăng ký đã đóng, **chưa khoá** |
 
 ### Làm cho UEF (14/11, đã lên production — web)
 
@@ -35,13 +35,17 @@ App PG lần deploy cuối là **11/09** (đợt UEF không sửa app PG).
 
 ## Còn lửng — làm trước khi nhận việc mới
 
-1. **Chưa xem được số liệu UEF.** Không biết bao nhiêu SV đăng ký / check-in / nhận thư, chưa
-   kiểm `0016` đã áp trên production chưa (code outbox 14/11 đọc `email_copy` nên có lẽ đã áp,
-   nhưng chưa kiểm). Lý do: xem mục "Truy cập production" bên dưới.
+1. **Số liệu UEF đã đọc 20/11** (SQL Editor, xem bảng trên). `0016` **đã áp** trên production
+   (có `queue_event_reminders`, `events.email_copy` của event 4 là object). Thư xác nhận UEF:
+   494 gửi được, **4 lỗi** do email SV nhập sai (3 sai định dạng, 1 có dấu) — sự kiện đã qua, chỉ
+   sửa nếu AIM muốn 4 SV đó xem điểm qua link. `registrations.checked_in_at` = 0 ở **mọi** sự kiện,
+   kể cả 12/09 → không phải lỗi riêng UEF; đếm người có mặt theo badge. Event 4 chưa khoá (HN/HCM đã khoá).
 2. **Chưa có bản sao lưu nào sau sự kiện.** `scripts/backup-db.mjs` (chỉ đọc, ghi ra
-   `../ATL2026-backups/<ngày_giờ>/`, NGOÀI repo vì có họ tên/email/SĐT) đã viết từ 13/09 nhưng
-   thư mục đích chưa tồn tại → chưa chạy lần nào. Chạy khi có DATABASE_URL production:
-   `node scripts/backup-db.mjs` (script tự dừng nếu URL không phải project `qllxeocjtbgtsrzpolqr`).
+   `../ATL2026-backups/<ngày_giờ>/`, NGOÀI repo vì có họ tên/email/SĐT) chưa chạy lần nào. Vướng:
+   **không ai nhớ mật khẩu database**, và `DATABASE_URL` trên Vercel là biến *Sensitive* (không xem /
+   copy lại được). Muốn sao lưu phải đặt lại mật khẩu Supabase → sửa `DATABASE_URL` ở **cả hai**
+   project Vercel (web + pg) → deploy lại cả hai — làm trong khung 22:00–07:00. Có URL rồi thì chạy
+   `node scripts/backup-db.mjs` (tự dừng nếu URL không phải project `qllxeocjtbgtsrzpolqr`).
 3. **CI của `85a50d4` đỏ** vì bước build tải font Google (`next/font`: "Cannot read properties of
    null") — lỗi mạng tạm thời, không phải code; deploy cùng commit vẫn chạy test xanh và thành công.
    Bấm *Re-run* là xanh.
@@ -55,8 +59,9 @@ App PG lần deploy cuối là **11/09** (đợt UEF không sửa app PG).
 - Supabase project production: `qllxeocjtbgtsrzpolqr`.
 - `.env.local` ở gốc repo trỏ project **khác, đã không còn** ("tenant/user not found") — đừng tin nó.
 - Supabase MCP bị từ chối quyền vào project prod (có thể project thuộc tài khoản kia).
-- Muốn đọc số liệu: chủ đặt `DATABASE_URL` production vào biến môi trường của phiên (không ghi
-  vào repo), hoặc mở phiên bằng tài khoản sở hữu project.
+- **Cách đọc số liệu đang dùng được:** Supabase SQL Editor trên Chrome của chủ (đã đăng nhập),
+  chỉ chạy `SELECT` đếm tổng, không in họ tên / email / SĐT. Làm 20/11 bằng agent Sonnet.
+- Đừng bấm *Reset database password* khi chưa sẵn sàng sửa cả hai project Vercel — app mất kết nối ngay.
 - Đọc được không cần quyền: `https://app.awakenthelions.net/api/refdata` (sự kiện đang hiện trên
   form, công khai) và `gh run list` (CI + deploy).
 
