@@ -61,6 +61,7 @@ hai đầu), `scan-queue` (hàng đợi offline — file quan trọng nhất), `
 5. Hạ tầng: Supabase project mới `ap-southeast-1` (thêm vào org Pro sẵn có
    = +$10/tháng compute) · 2 project Vercel · env (`ATL_HMAC_KEY` **mới, không
    dùng lại của client cũ** — token QR hai campaign phải không đổi lẫn được,
+   `ATL_ACCESS_KEY` mới và **khác** `ATL_HMAC_KEY` (chỉ project web), `CRON_SECRET`,
    `ADMIN_ACCESS_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `NEXT_PUBLIC_SITE_URL`).
 6. DNS + email: theo mẫu `ATL2026-Huong-dan-DNS-MatBao.pdf` — 2 CNAME app,
    subdomain `mail.` riêng, SPF/DKIM/DMARC, nuôi uy tín từ sớm.

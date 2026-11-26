@@ -38,7 +38,7 @@ Quy ước trong tài liệu:
    - 2.1 Sơ đồ tổng
    - 2.2 Hai ứng dụng
    - 2.3 Tám thư viện dùng chung
-   - 2.4 Database và 16 migration
+   - 2.4 Database và 17 migration
    - 2.5 Luồng chính
    - 2.6 Những bảo đảm không được phá
 3. Hạ tầng tại ngày bàn giao và quyền sở hữu
@@ -229,14 +229,14 @@ Test chạy Postgres thật biên dịch sang WebAssembly (**PGlite**) — khôn
 | `/` | Trang chủ |
 | `/dang-ky` | Form đăng ký online (đóng / mở bằng nút trong admin) |
 | `/dang-ky?nhanh` | Form đăng ký nhanh tại cổng — **vẫn chạy khi đăng ký online đã đóng** |
-| `/toi` | Mã QR (xem được khi không có mạng), tiến độ badge, quà đủ điều kiện. Link riêng trong thư: `/toi#t=<mã-QR>` |
+| `/toi` | Mã QR (xem được khi không có mạng), tiến độ badge, quà đủ điều kiện. Link riêng trong thư: `/toi#t=<mã truy cập SV>` (từ 26/11; trước đó là mã QR) |
 | `/lich`, `/lich/khu-vuc` | Lịch hoạt động (làm mới mỗi 60 giây) |
 | `/khao-sat` | Khảo sát của gian hàng |
 | `/admin` | Bảng điều khiển Ban tổ chức (7 tab, bảng dưới) |
 | `/api/register` | Nhận đăng ký, ký mã QR |
 | `/api/refdata` | Danh sách sự kiện, trường, tỉnh cho form — **CDN giữ 1 giờ** (xem mục 5.9) |
-| `/api/toi`, `/api/toi/pass` | Tiến độ của sinh viên; đổi mã QR trong link thư lấy thẻ tham dự |
-| `/api/cron/outbox` | Bộ gửi thư, Vercel Cron gọi mỗi phút (`apps/web/vercel.json`) |
+| `/api/toi`, `/api/toi/pass`, `/api/khao-sat` | Tiến độ / thẻ tham dự / khảo sát của sinh viên. Xác thực bằng **mã truy cập SV** (khoá `ATL_ACCESS_KEY`), **không** bằng mã QR (mục 9) |
+| `/api/cron/outbox` | Bộ gửi thư, Vercel Cron gọi mỗi phút (`apps/web/vercel.json`). Production bắt buộc `CRON_SECRET` |
 | `/api/admin/*` | API của trang quản trị, kiểm mã truy cập `ADMIN_ACCESS_KEY` |
 
 Trang quản trị làm được gì (chi tiết thao tác: PDF `ATL2026-Huong-dan-Admin.pdf`):
@@ -290,7 +290,7 @@ Hai app deploy **độc lập**: app PG có thể đóng băng từ sáng ngày 
 
 Mỗi thư viện có `CHANGELOG.md`. Mốc ổn định đánh tag git `engine-vX.Y.Z` (hiện có `engine-v1.0.0`).
 
-### 2.4 Database và 16 migration
+### 2.4 Database và 17 migration
 
 24 bảng (Phụ lục D). Hai luật xuyên suốt: mọi dòng thuộc một sự kiện mang `event_id`; bảng con tham chiếu
 bảng cha bằng **khoá phức hợp có `event_id`**, nên dữ liệu Hà Nội không thể lẫn sang TP.HCM.
@@ -313,11 +313,13 @@ bảng cha bằng **khoá phức hợp có `event_id`**, nên dữ liệu Hà N�
 | `0014_gift_cascade` | Luật đổi quà cộng dồn (7 badge → túi; 9 badge → túi + hộp bút) |
 | `0015_event_archive` | `events.is_archived`: khoá và ẩn sự kiện |
 | `0016_event_email_copy` | `events.email_copy` (chữ thư riêng từng sự kiện) + `queue_event_reminders` (xếp thư nhắc hàng loạt) |
+| `0017_rls_lockdown` | Vá bảo mật 26/11: bật RLS mọi bảng (không policy, không FORCE), thu mọi quyền của `anon` / `authenticated` và EXECUTE của PUBLIC, default privileges cho object mới (mục 9) |
 
 Các file SQL sinh tự động bằng `node scripts/build-production-sql.mjs` (chạy ở thư mục gốc, **đừng sửa tay**):
 
-- `supabase/production-init.sql` — toàn bộ 16 migration theo thứ tự, **chỉ** dán vào database **mới, trống**.
-- `supabase/production-patch-0016.sql` — chỉ migration mới nhất, bọc một transaction, cho database đang chạy.
+- `supabase/production-init.sql` — toàn bộ 17 migration theo thứ tự, **chỉ** dán vào database **mới, trống**.
+- `supabase/production-patch-0017.sql` — chỉ migration mới nhất (0017), bọc một transaction, cho database đang chạy.
+  `production-patch-0016.sql` là bản vá trước (đã áp 11/2026), giữ lại để đối chiếu.
 - `supabase/production-seed.sql` — dữ liệu nền: 24 trường, 34 tỉnh, mùa 2026 và 2 sự kiện Hà Nội / TP.HCM 12/09/2026
   ở trạng thái đóng đăng ký.
 
@@ -329,10 +331,14 @@ Các file SQL sinh tự động bằng `node scripts/build-production-sql.mjs` (
    Cổng đăng ký đóng thì từ chối nguồn `online`; đăng ký tại cổng (`walk_in`) vẫn qua. Sự kiện đã khoá thì từ chối tất cả.
 2. **Mã QR.** Server ký mã: 16 byte = phiên bản (1) + id sự kiện (1) + `seq` sinh viên (4) + HMAC-SHA256 cắt còn 80 bit (10)
    → Crockford Base32, 26 ký tự → QR cỡ 25×25, mức sửa lỗi Q. Ảnh QR gửi về máy SV một lần, `/toi` hiện lại không cần mạng.
-   Kèm **mã tra cứu 6 ký tự** để PG nhập tay.
-3. **Gửi thư.** Vercel Cron gọi `/api/cron/outbox` mỗi phút (kèm `CRON_SECRET`). Mỗi lượt nhận tối đa **40 thư**
+   Kèm **mã tra cứu 6 ký tự** để PG nhập tay. Mã QR **chỉ để quét**: khoá ký nó công khai trong app PG.
+   Cùng lúc server ký **mã truy cập SV** (cùng khung 16 byte / 26 ký tự, byte đầu `0xA1`, khoá `ATL_ACCESS_KEY` chỉ có ở
+   server — `apps/web/src/lib/access-token.js`). `/toi` lưu nó trong thẻ (`atl_pass_v1.access`) và dùng nó để đọc điểm.
+3. **Gửi thư.** Vercel Cron gọi `/api/cron/outbox` mỗi phút (kèm `CRON_SECRET`; production thiếu biến này thì route
+   từ chối mọi lời gọi, trả 503, không gửi thư). Mỗi lượt nhận tối đa **40 thư**
    (~2.400 thư/giờ). Mẫu thư chọn **lúc gửi**: sự kiện có `email_copy` dùng mẫu kiểu AIM, không có thì dùng mẫu cũ ATL2026.
-   Mã QR được ký lại mỗi lần gửi (cùng kết quả). Lỗi thì lùi lịch 1 → 2 → 4… phút, sau 8 lần thì đánh dấu `failed`.
+   Mã QR được ký lại mỗi lần gửi (cùng kết quả); link riêng `/toi#t=…` mang **mã truy cập SV**, không mang mã QR.
+   Lỗi thì lùi lịch 1 → 2 → 4… phút, sau 8 lần thì đánh dấu `failed`.
 4. **Quét.** Máy PG đã nhận mã, đã tải danh sách SV (làm mới phần thay đổi mỗi 10 phút). Quét QR → kiểm chữ ký ngay
    trên máy → hiện kết quả trong ~150 ms (dấu `~` = đã ghi trên máy, `✓` = server đã xác nhận; quét trùng hiện **màu hổ phách**,
    không phải lỗi) → hàng đợi đẩy lên `/api/pg/sync` → `record_pg_scan` ghi `ledger_events` và `attendance`, cộng badge theo
@@ -380,6 +386,9 @@ Bảng đầy đủ (tên, project, ý nghĩa, cách tạo giá trị mới, đ�
 - App PG cần **`NEXT_PUBLIC_ATL_HMAC_KEY` có giá trị y hệt `ATL_HMAC_KEY` của app web**. Thiếu biến này, app PG lặng lẽ
   dùng khoá dev và báo sai **mọi** mã QR thật. (PDF Setup có biến này, nhưng danh sách trong `DOC-TRUOC.txt` ngày 20/11 bỏ sót —
   đã kiểm trong `apps/pg/src/app/quet/page.js`, `qua/page.js`, `suat/page.js`.)
+- **`ATL_ACCESS_KEY`** (chỉ project web, từ 26/11): khoá ký mã truy cập SV — mở điểm, thẻ tham dự, khảo sát của một
+  sinh viên. **Phải khác** `ATL_HMAC_KEY` (code từ chối chạy nếu trùng) và **không bao giờ** đặt vào project pg hay một
+  biến `NEXT_PUBLIC_*`. Production thiếu biến này thì đăng ký, `/toi` và outbox dừng hẳn, không ký bằng khoá dev.
 - Tổ chức tiếp nhận nên lưu bản sao các giá trị trong trình quản lý mật khẩu của tổ chức ngay khi tạo.
 
 Secrets của GitHub Actions (cho workflow deploy):
@@ -396,8 +405,8 @@ Secrets của GitHub Actions (cho workflow deploy):
 Toàn bộ hệ thống dùng **một khoá cho mọi sự kiện** trong cùng một lần dựng (cột `events.token_key_id` chỉ là nhãn,
 code không dùng nó để chọn khoá). Khi đổi khoá:
 
-1. **Mọi mã QR đã phát không còn hợp lệ:** ảnh QR trong thư cũ, mã lưu trong `/toi` trên điện thoại SV, link `/toi#t=…`
-   trong thư. Máy PG báo mã sai; `/toi` không mở được.
+1. **Mọi mã QR đã phát không còn hợp lệ:** ảnh QR trong thư cũ, mã QR lưu trong `/toi` trên điện thoại SV. Máy PG báo
+   mã sai. Link riêng `/toi#t=…` (mã truy cập SV, khoá khác) vẫn mở được và trả về mã QR **mới** — SV mở lại link là xong.
 2. **Dữ liệu không mất:** badge, quà, đăng ký đều nằm trong database, không phụ thuộc khoá.
 3. PG vẫn tra tay được bằng tên, SĐT, MSSV hoặc mã 6 ký tự.
 4. Thư gửi **sau** khi đổi sẽ mang mã QR mới (mã được ký lúc gửi).
@@ -406,6 +415,10 @@ code không dùng nó để chọn khoá). Khi đổi khoá:
 
 Khi nào nên đổi: dựng cho khách hàng / mùa mới (`docs/FORK-PLAYBOOK.md` bắt buộc khoá mới để mã QR hai chiến dịch không
 dùng lẫn được), hoặc khi nghi lộ khoá (xem mục 9). **Không đổi giữa lúc SV đang cầm mã cho một sự kiện sắp diễn ra.**
+
+**Đổi `ATL_ACCESS_KEY`** (khoá mã truy cập SV, chỉ ở web): mã QR **không** đổi, máy PG quét bình thường. Mất hiệu lực là
+link riêng trong mọi thư đã gửi và phần điểm / khảo sát trên thẻ đã lưu ở điện thoại SV (`/toi` báo "lấy lại mã"). SV lấy
+lại bằng `/dang-ky` (điền lại đúng email hoặc SĐT) hoặc thư gửi sau khi đổi. Chỉ deploy lại web. Đổi khi nghi lộ khoá này.
 
 ### 3.4 Mật khẩu database — không ai còn giữ
 
@@ -508,7 +521,9 @@ Kho nên để **riêng tư**. Workflow `CI` tự chạy test và build mỗi l�
    Nếu bỏ qua bước 2, tạo sự kiện bằng SQL thay cho seed (Phụ lục B, mục "Tạo sự kiện đầu tiên").
 5. Lấy `DATABASE_URL` như mục 3.4 bước 3 (Transaction pooler, cổng 6543).
 6. Không cần bật thêm gì cho app chạy (app chỉ truy cập qua server bằng chuỗi kết nối, không dùng khoá `anon` của Supabase).
-   Riêng phần bảo mật Data API của Supabase: xem mục 9.
+   `production-init.sql` đã gồm 0017: bật RLS mọi bảng và thu quyền `anon` / `authenticated` (mục 9). Kiểm:
+   `select relname from pg_class where relnamespace = 'public'::regnamespace and relkind in ('r','p') and not relrowsecurity;`
+   → không dòng nào.
 
 ### 4.4 Vercel
 
@@ -528,8 +543,8 @@ Kho nên để **riêng tư**. Workflow `CI` tự chạy test và build mỗi l�
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
 
-   Cần 3 giá trị: `ATL_HMAC_KEY`, `ADMIN_ACCESS_KEY`, `CRON_SECRET`.
-7. Khai biến môi trường theo **Phụ lục C**: project web 7 biến, project pg 2 biến. Áp cho Production và Preview.
+   Cần 4 giá trị, **mỗi cái một lần chạy lệnh**: `ATL_HMAC_KEY`, `ATL_ACCESS_KEY`, `ADMIN_ACCESS_KEY`, `CRON_SECRET`.
+7. Khai biến môi trường theo **Phụ lục C**: project web 8 biến, project pg 2 biến. Áp cho Production và Preview.
    Lưu ý: nếu Preview dùng cùng `DATABASE_URL` với Production thì **mọi thao tác thử trên bản preview ghi thẳng vào
    database thật**. Muốn thử an toàn, đặt `DATABASE_URL` của Preview trỏ một project Supabase thử.
    `RESEND_API_KEY` có thể thêm sau (mục 4.7) — thiếu nó thư chỉ nằm chờ, không bị đánh hỏng.
@@ -589,7 +604,10 @@ ghi ở phần Summary của lượt chạy.
    - Mở `https://pg.<tên-miền>` trên điện thoại thật → nhập mã + PIN → màn quét mở được camera, quét thử được mã QR của
      một đăng ký thử (kiểm `NEXT_PUBLIC_ATL_HMAC_KEY` khớp).
    - Vercel → project web → Cron Jobs: thấy `/api/cron/outbox` lịch mỗi phút.
-   - Mở đăng ký (mục 5.9), đăng ký bằng email nội bộ → nhận được thư có mã QR.
+   - Mở đăng ký (mục 5.9), đăng ký bằng email nội bộ → nhận được thư có mã QR; `/toi` hiện điểm (mã truy cập SV chạy);
+     bấm link riêng trong thư trên máy khác → mở được thẻ.
+   - Mở `https://app.<tên-miền>/api/cron/outbox` trên trình duyệt (không header) → phải ra `401 unauthorized`.
+     Ra `503 cron_secret_missing` = thiếu `CRON_SECRET` trên project web, thư sẽ không đi.
 
 ### 4.9 Kiểm tra tranh chấp trên hạ tầng thật (khuyên làm trước sự kiện lớn)
 
@@ -973,7 +991,7 @@ Tìm lại những chỗ còn sót: `grep -rn -i "awaken\|aim academy\|aimacadem
 
 1. **Chỉ thêm, không sửa, không xoá.** Không sửa file migration đã áp. Không `DROP COLUMN`, không đổi kiểu cột đang có dữ liệu.
    Viết để chạy lại lần hai vẫn an toàn (`if not exists`, `create or replace`, khối `DO` kiểm ràng buộc).
-2. Tạo `supabase/migrations/00NN_<tên>.sql` (số kế tiếp, hiện là 0017) + test trong `supabase/test/`. `npm test`.
+2. Tạo `supabase/migrations/00NN_<tên>.sql` (số kế tiếp, hiện là 0018) + test trong `supabase/test/`. `npm test`.
 3. `node scripts/build-production-sql.mjs` (ở thư mục gốc) → sinh lại `production-init.sql`, `production-seed.sql` và
    `production-patch-00NN.sql` (bọc một transaction: lỗi giữa chừng thì không có gì được áp). Commit cả ba.
 4. Dán `production-patch-00NN.sql` vào SQL Editor của database đang chạy → Run, **trước** khi deploy code đọc cột mới.
@@ -982,6 +1000,9 @@ Tìm lại những chỗ còn sót: `grep -rn -i "awaken\|aim academy\|aimacadem
 5. Không bao giờ dán `production-init.sql` lên database đang chạy.
 6. Mọi hàm plpgsql mở đầu bằng `#variable_conflict use_column` (tránh lỗi tên cột nhập nhằng).
 7. Không tạo unique index trên bảng production có thể đã có dữ liệu trùng — dùng advisory lock + `NOT EXISTS` như 0016.
+8. **Bảng mới: `alter table <bảng> enable row level security;` ngay trong migration đó** (không policy, không FORCE).
+   RLS không có "mặc định cho bảng mới"; `supabase/test/rls.test.js` fail nếu quên. Quyền của `anon` / `authenticated`
+   và EXECUTE của PUBLIC trên bảng / function mới thì default privileges của 0017 đã chặn (khi migration chạy bằng role `postgres`).
 
 ### 8.3 Deploy và rollback
 
@@ -1020,6 +1041,9 @@ Tìm lại những chỗ còn sót: `grep -rn -i "awaken\|aim academy\|aimacadem
 | SV nhập email có dấu (gõ Telex) → thư lỗi 8 lần | Form và server vẫn đang nhận email có dấu (chưa sửa); sửa email trong database rồi đưa thư vào lại hàng đợi |
 | Heredoc của bash với tiếng Việt có dấu và dấu backtick bị hỏng | Viết file bằng trình soạn thảo hoặc script `.mjs` |
 | `Compress-Archive` (PowerShell 5.1) tạo zip hỏng trên Mac | `tar.exe -a -c -f` |
+| Route đọc dữ liệu SV xác thực bằng mã QR — khoá QR công khai trong app PG (sửa 26/11) | Dùng mã truy cập SV (`apps/web/src/lib/access-token.js`, `verifyAccess`); test `apps/web/test/access-token.test.js` |
+| Bảng mới quên bật RLS → REST API Supabase mở bảng cho `anon` | `enable row level security` trong cùng migration; test `supabase/test/rls.test.js` |
+| `CRON_SECRET` để trống trên production → ai cũng kích được outbox (sửa 26/11) | Route giờ trả 503 và không gửi; đặt biến rồi deploy lại web |
 
 ---
 
@@ -1032,18 +1056,45 @@ trong database production và trong gói dữ liệu riêng (mục 1.3).
 dùng nút *Thoát* trên máy mượn. Ô "Tên bạn" chỉ để ghi nhật ký, không xác thực danh tính. Đổi mã = sửa `ADMIN_ACCESS_KEY` + deploy lại
 web; nên đổi sau mỗi mùa hoặc khi có người rời đội.
 
-**Khoá ký mã QR nằm trong app PG (phát hiện khi lập tài liệu, theo code).** Để máy quét kiểm mã khi mất mạng, app PG đọc
-`NEXT_PUBLIC_ATL_HMAC_KEY`; biến `NEXT_PUBLIC_*` được nhúng vào mã JavaScript mà trình duyệt tải về từ `pg.<tên-miền>`. Nghĩa là ai
-tải được mã của app PG đều có thể lấy khoá và tạo mã QR hợp lệ cho bất kỳ số `seq` nào (số tăng dần), từ đó mở `/toi` xem
-**họ tên, mã tra cứu, số badge** của sinh viên khác. Cộng badge giả vẫn phải qua máy PG đã nhận mã. Giảm thiểu: khoá mới cho mỗi
-khách hàng / mùa (mục 3.3); cân nhắc chuyển sang chữ ký bất đối xứng (máy quét chỉ giữ khoá công khai) — xem mục 10. Mức độ trên
-bản đang chạy — cần kiểm lại.
+**Ba lỗ hổng phát hiện khi lập tài liệu — đã sửa trong code ngày 26/11/2026** (nhánh `fix/bao-mat-3-diem`). Bản đang chạy
+chỉ hết lỗ sau khi áp đủ runbook ngay dưới.
 
-**Supabase Data API:** migration không bật RLS cho bảng nào; app không dùng khoá `anon` của Supabase nên không phát hành khoá đó.
-Supabase thường mở Data API cho vai trò `anon` / `authenticated` trên schema `public` (cần kiểm lại thiết lập của từng project) —
-khi đó ai có khoá `anon` của project có thể đọc / ghi bảng.
-Khuyên: tắt Data API hoặc thu quyền của `anon` / `authenticated` trên các bảng (migration 0016 đã làm vậy cho hàm
-`queue_event_reminders`). Cần kiểm lại tác động trên một project thử trước khi làm trên production.
+1. **Khoá ký mã QR nằm trong app PG.** Để máy quét kiểm mã khi mất mạng, app PG đọc `NEXT_PUBLIC_ATL_HMAC_KEY`; biến
+   `NEXT_PUBLIC_*` được nhúng vào JavaScript mà trình duyệt tải về từ `pg.<tên-miền>`, nên khoá này coi như **công khai**.
+   Trước 26/11, `/api/toi`, `/api/toi/pass` (và `/api/khao-sat`) xác thực bằng chính mã QR: ai có khoá tự tạo mã cho mọi `seq`
+   rồi đọc **họ tên, mã tra cứu, số badge** của sinh viên khác (và làm khảo sát nhận badge thay họ).
+   **Cách sửa:** tách hai khoá. Mã QR giữ nguyên định dạng và khoá cũ — chỉ để quét, máy PG không phải sửa hay deploy lại.
+   Mọi đường đọc dữ liệu cá nhân (`/api/toi`, `/api/toi/pass`, `/api/khao-sat`, link riêng trong thư) dùng **mã truy cập SV**:
+   26 ký tự, ký HMAC bằng `ATL_ACCESS_KEY` chỉ có ở server web. `/api/register` trả thêm mã này, `/toi` lưu nó trong thẻ.
+   Mã QR gửi tới các route đó bị 401 (`reason: qr_token`).
+   **Tác động lên SV đang có thẻ cũ** (lưu trước khi deploy): mã QR vẫn hiện offline và quét bình thường; riêng phần điểm và
+   khảo sát báo "mở link trong email mới nhất hoặc lấy lại mã". Link trong các thư đã gửi trước đó (mang mã QR) không còn mở
+   được trang điểm — `/toi` báo "link cũ, lấy lại mã bằng email / SĐT". Không màn hình trắng, không mất dữ liệu.
+   Còn lại: ai có khoá PG vẫn tạo được **mã QR** quét được ở booth (cộng badge vẫn phải qua máy PG đã nhận mã) — muốn chặn hẳn
+   thì chuyển sang chữ ký bất đối xứng (mục 10). Khoá mới cho mỗi khách hàng / mùa (mục 3.3).
+2. **Database chưa bật RLS.** Supabase mở REST API (`/rest/v1`, `/rest/v1/rpc`) cho `anon` / `authenticated` trên schema
+   `public`; ai có khoá `anon` của project đọc / ghi được bảng và gọi được các hàm `security definer`.
+   **Cách sửa:** migration `0017_rls_lockdown` bật RLS mọi bảng (không policy, **không FORCE** — app nối bằng role chủ bảng nên
+   vẫn chạy y như cũ), thu mọi quyền của `anon` / `authenticated` trên bảng / view / sequence / function, thu EXECUTE của PUBLIC
+   trên function của app, đặt default privileges để object mới không tự cấp cho các role đó. App không dùng khoá `anon`.
+3. **`CRON_SECRET` không bắt buộc.** Production thiếu biến là ai biết URL cũng kích được outbox gửi thư.
+   **Cách sửa:** production thiếu `CRON_SECRET` thì `/api/cron/outbox` từ chối mọi lời gọi (503 `cron_secret_missing`,
+   không nhận dòng, không gửi thư); có thì bắt `Authorization: Bearer <CRON_SECRET>` như cũ.
+
+**Runbook áp bản vá 26/11 lên hệ thống đang chạy** (trong khung 22:00–07:00, không có sự kiện sắp diễn ra; đúng thứ tự):
+
+1. Supabase → project production → **SQL Editor** → New query → dán nguyên `supabase/production-patch-0017.sql` → **Run**.
+   "Success. No rows returned" là xong (cả file một transaction: lỗi thì không có gì được áp). App đang chạy không bị ảnh hưởng.
+   Kiểm: `select relname from pg_class where relnamespace = 'public'::regnamespace and relkind in ('r','p') and not relrowsecurity;`
+   → không dòng nào; `select has_table_privilege('anon', 'students', 'select');` → `false`. Supabase → Advisors hết cảnh báo RLS.
+2. Vercel → **project web** → Settings → Environment Variables: thêm **`ATL_ACCESS_KEY`** (Sensitive, Production + Preview;
+   tạo bằng lệnh ở mục 4.4 bước 6, **khác** `ATL_HMAC_KEY`). Kiểm **`CRON_SECRET`** đã có (thiếu thì tạo). **Không** thêm gì vào project pg.
+3. Deploy **web** production (mục 4.8 bước 1, `app=web`). **App PG không phải deploy lại.**
+4. Kiểm: đăng ký thử (hoặc gửi lại form bằng email đã đăng ký) → `/toi` hiện điểm; mở `/api/cron/outbox` không header → `401`;
+   Vercel → Logs không có dòng `CRON_SECRET chưa đặt` hay `ATL_ACCESS_KEY is required`.
+
+Bước 1 làm độc lập được (code cũ vẫn chạy trên database đã vá). Bước 3 mà thiếu `ATL_ACCESS_KEY` thì đăng ký và `/toi` báo lỗi,
+outbox dừng (503) mà không tiêu lượt thử của thư — thêm biến rồi deploy lại là chạy.
 
 **Dữ liệu cá nhân của sinh viên:**
 
@@ -1067,7 +1118,8 @@ Khuyên: tắt Data API hoặc thu quyền của `anon` / `authenticated` trên 
 **Giới hạn đã biết**
 
 1. Trang quản trị dùng một mã chung, không có tài khoản từng người.
-2. Một khoá ký QR cho mọi sự kiện, và khoá đó có trong app PG (mục 9). `events.token_key_id` chưa được dùng.
+2. Một khoá ký QR cho mọi sự kiện, và khoá đó công khai trong app PG (mục 9): từ 26/11 nó chỉ dùng để quét, không mở được dữ
+   liệu của ai, nhưng ai có nó vẫn tạo được mã QR quét được ở booth. `events.token_key_id` chưa được dùng.
 3. Không có công cụ nhập danh sách sinh viên hàng loạt trong kho mã. Đợt 07–11/09/2026 nhập bằng script viết riêng (`convert.mjs`, nằm
    ngoài kho), gọi `/api/register` khoảng 2 lượt/giây, chạy thử 5–10 dòng trước; luật làm sạch dữ liệu và nhật ký ba đợt nhập ghi ở
    spec mục 4.5.
@@ -1119,9 +1171,9 @@ Khuyên: tắt Data API hoặc thu quyền của `anon` / `authenticated` trên 
 ├── packages/                    brand, db, email, qr-render, qr-token, scan-queue, vn-text, xlsx-lite
 │                                (mỗi thư viện: src/, test/, CHANGELOG.md)
 ├── supabase/
-│   ├── migrations/              0001_foundations.sql … 0016_event_email_copy.sql
+│   ├── migrations/              0001_foundations.sql … 0017_rls_lockdown.sql
 │   ├── production-init.sql      Sinh tự động — database MỚI
-│   ├── production-patch-0016.sql Sinh tự động — database đang chạy
+│   ├── production-patch-0017.sql Sinh tự động — database đang chạy
 │   ├── production-seed.sql      Sinh tự động — dữ liệu nền
 │   └── test/                    Test database (PGlite)
 ├── scripts/                     build-production-sql, export-bundle-sql, export-event-csv, backup-db,
@@ -1222,10 +1274,11 @@ Không ghi giá trị nào. "Deploy lại" = chạy workflow deploy cho app đó
 | Biến | Project | Bắt buộc | Ý nghĩa | Tạo giá trị mới | Đổi xong phải |
 |---|---|---|---|---|---|
 | `DATABASE_URL` | web **và** pg (cùng giá trị) | Có — production thiếu là dừng | Chuỗi kết nối Supabase qua **Transaction pooler cổng 6543** | Supabase → Connect → Transaction pooler → URI; mật khẩu chỉ chữ và số | Deploy lại **cả hai** |
-| `ATL_HMAC_KEY` | web | Có — production và bước build từ chối khi thiếu | Khoá ký mã QR phía server (đăng ký, gửi thư, `/toi`) | Chuỗi ngẫu nhiên, tối thiểu 16 byte; khuyên 64 ký tự hex (lệnh ở Phụ lục B) | Xem mục 3.3 — đổi cùng `NEXT_PUBLIC_ATL_HMAC_KEY`, deploy cả hai |
+| `ATL_HMAC_KEY` | web | Có — production và bước build từ chối khi thiếu | Khoá ký **mã QR** phía server (đăng ký, ảnh QR trong thư, thẻ `/toi`). Coi như công khai vì app PG giữ bản sao | Chuỗi ngẫu nhiên, tối thiểu 16 byte; khuyên 64 ký tự hex (lệnh ở Phụ lục B) | Xem mục 3.3 — đổi cùng `NEXT_PUBLIC_ATL_HMAC_KEY`, deploy cả hai |
 | `NEXT_PUBLIC_ATL_HMAC_KEY` | pg | Có — thiếu thì app PG dùng khoá dev, báo sai mọi mã thật | Khoá để máy quét kiểm mã offline. **Y hệt** `ATL_HMAC_KEY` | Chép đúng giá trị `ATL_HMAC_KEY` (không thừa dấu cách / xuống dòng) | Deploy lại pg (giá trị nhúng lúc build) |
+| `ATL_ACCESS_KEY` | **chỉ web** | Có (từ 26/11) — production thiếu thì đăng ký, `/toi`, outbox dừng; trùng `ATL_HMAC_KEY` cũng dừng | Khoá ký **mã truy cập SV**: mở điểm, thẻ tham dự, khảo sát, link riêng trong thư. **Không bao giờ** đặt vào pg hay `NEXT_PUBLIC_*` | Chuỗi ngẫu nhiên như `ATL_HMAC_KEY` (lệnh ở mục 4.4), **khác** `ATL_HMAC_KEY` | Deploy lại web. Link thư cũ và thẻ đã lưu mất phần điểm (mục 3.3) |
 | `ADMIN_ACCESS_KEY` | web | Có — production từ chối khi thiếu | Mã vào `/admin` | Chuỗi ngẫu nhiên | Deploy lại web; báo đội admin mã mới |
-| `CRON_SECRET` | web | Nên có — thiếu thì `/api/cron/outbox` không kiểm người gọi | Vercel Cron tự gửi kèm header `Authorization: Bearer <CRON_SECRET>` | Chuỗi ngẫu nhiên | Deploy lại web |
+| `CRON_SECRET` | web | Có (từ 26/11) — production thiếu thì `/api/cron/outbox` từ chối mọi lời gọi (503), không gửi thư | Vercel Cron tự gửi kèm header `Authorization: Bearer <CRON_SECRET>` | Chuỗi ngẫu nhiên | Deploy lại web |
 | `RESEND_API_KEY` | web | Để gửi thư — thiếu thì thư nằm chờ trong outbox, không bị đánh hỏng | Khoá API Resend | Resend → API Keys, quyền *Sending* | Deploy lại web |
 | `EMAIL_FROM` | web | Đi cùng `RESEND_API_KEY` | Địa chỉ gửi | `Tên hiển thị <noreply@mail.<tên-miền>>`, domain phải Verified trên Resend | Deploy lại web |
 | `NEXT_PUBLIC_SITE_URL` | web | Nên có — thiếu thì dùng `https://app.awakenthelions.net` | URL gốc trong thư (link `/toi`, `/lich`) | `https://app.<tên-miền>` | Deploy lại web |
@@ -1274,12 +1327,13 @@ Secrets GitHub Actions: bảng ở mục 3.2.
 3. Team Vercel đang chứa 2 project và tên thật của 2 project (`atl2026-web`, `atl2026-pg` theo tài liệu dựng).
 4. Chủ sở hữu tài khoản Resend.
 5. Hạn của `VERCEL_TOKEN` hiện tại (tài liệu dựng đặt 90 ngày, tạo đầu 09/2026).
-6. Ai còn giữ bản sao `ATL_HMAC_KEY`, `ADMIN_ACCESS_KEY`, `CRON_SECRET` ngoài Vercel.
+6. Ai còn giữ bản sao `ATL_HMAC_KEY`, `ATL_ACCESS_KEY`, `ADMIN_ACCESS_KEY`, `CRON_SECRET` ngoài Vercel.
 7. Điều kiện chuyển project Supabase giữa tổ chức và chuyển project Vercel giữa team; biến Sensitive có đi theo project hay không.
 8. Vị trí nút xoá cache CDN trong giao diện Vercel; deploy lại có xoá cache CDN hay không.
 9. Node.js 20 trên Windows có chạy được `npm test` (mẫu đường dẫn `*`) hay không — khuyên dùng Node 22.
-10. Mức lộ khoá ký QR trên bản app PG đang chạy (mục 9).
-11. Tác động của việc tắt Data API / thu quyền `anon` trên Supabase trước khi làm ở production (mục 9).
+10. Bản vá bảo mật 26/11 đã lên production chưa: patch 0017 đã dán, `ATL_ACCESS_KEY` + `CRON_SECRET` có trên project web,
+    web đã deploy lại (runbook mục 9).
+11. Sau khi áp 0017: có ai / công cụ nào ngoài app dùng khoá `anon` của Supabase không (theo code thì không) — nếu có, nó sẽ hỏng.
 12. Trạng thái hồ sơ pháp lý về văn bản đồng ý và chuyển dữ liệu ra nước ngoài.
 13. `pg.awakenthelions.net` còn trỏ đúng app PG (tài liệu 09/2026 ghi vậy; sổ bàn giao chỉ kiểm `app.`).
 

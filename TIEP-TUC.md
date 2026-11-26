@@ -8,6 +8,19 @@ File này để mở lại công việc từ máy khác (điện thoại, máy k
 
 ---
 
+## CHỜ ÁP PRODUCTION (26/11/2026) — vá 3 lỗ hổng bảo mật, nhánh `fix/bao-mat-3-diem`
+
+Đã sửa trong code (chưa push, chưa deploy, chưa áp gì lên Supabase): (1) `/api/toi`, `/api/toi/pass`, `/api/khao-sat`
+và link riêng trong thư giờ dùng **mã truy cập SV** (26 ký tự, khoá mới `ATL_ACCESS_KEY` chỉ ở server web —
+`apps/web/src/lib/access-token.js`), không còn dùng mã QR vì khoá QR công khai trong JS của app PG; mã QR giữ nguyên
+định dạng, app PG không đổi. Thẻ cũ trên máy SV vẫn hiện mã QR, chỉ phần điểm báo "mở link thư mới / lấy lại mã";
+link trong thư gửi trước đó hết mở được trang điểm. (2) Migration `0017_rls_lockdown`: bật RLS mọi bảng (không policy,
+không FORCE), thu quyền `anon` / `authenticated` (+ EXECUTE của PUBLIC trên function), default privileges cho object mới.
+(3) Production thiếu `CRON_SECRET` thì `/api/cron/outbox` trả 503, không gửi thư.
+**Thứ tự áp production** (khung 22:00–07:00, sau khi chủ duyệt và merge): dán `supabase/production-patch-0017.sql` vào
+SQL Editor → Run → đặt `ATL_ACCESS_KEY` (khác `ATL_HMAC_KEY`) + kiểm `CRON_SECRET` trên Vercel **project web** →
+deploy **web**. App PG **không** phải deploy lại. Runbook + câu kiểm: `docs/HUONG-DAN-TAI-SU-DUNG.md` mục 9.
+
 ## XONG (26/11/2026) — gói dữ liệu lưu trữ cho AIM
 
 **`D:\AI_App_Embassy\AIM Academy\ATL2026-du-lieu-luu-tru-AIM-2026-11-26.zip`** (2,4 MB, 57 file,
@@ -153,6 +166,8 @@ App PG lần deploy cuối là **11/09** (đợt UEF không sửa app PG).
 - **Ambiguous column trong plpgsql.** `#variable_conflict use_column` ở đầu mọi function.
 - **Không tạo unique index trên bảng production có thể đã có dữ liệu trùng** (vd `notification_outbox`
   có dòng nhắc chèn tay) — dùng advisory lock + `NOT EXISTS` như `0016`.
+- **Bảng mới phải `enable row level security` trong cùng migration** (từ 0017) — `supabase/test/rls.test.js` chặn.
+- **Route đọc dữ liệu SV xác thực bằng mã truy cập (`verifyAccess`), không bằng mã QR** — khoá QR công khai ở app PG.
 - **Giữ test xanh.** Test viết theo kiểu khẳng định *điều không thể xảy ra*, không phải happy path.
 
 Đọc thêm: [`CONTRIBUTING.md`](CONTRIBUTING.md), [`README.md`](README.md),
