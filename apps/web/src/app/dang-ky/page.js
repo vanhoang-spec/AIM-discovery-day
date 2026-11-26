@@ -161,6 +161,9 @@ export default function RegisterPage() {
         localStorage.setItem(PASS_KEY, JSON.stringify({
           token: data.token,
           qr_svg: data.qr_svg,
+          // [26/11] Mã truy cập — /toi và /khao-sat đọc điểm bằng mã này, không
+          // bằng mã QR nữa (khoá ký QR công khai ở app PG).
+          access: data.access,
           lookup_code: data.lookup_code,
           full_name: data.full_name,
           event_id: data.event_id,

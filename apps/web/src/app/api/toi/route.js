@@ -2,11 +2,11 @@
  * Personal progress for /toi (the other half of AC "SV biết mình đã tham gia
  * bao nhiêu hoạt động", plus AC18's "bạn còn thiếu gì" screen).
  *
- * Auth IS the QR token: the client sends the signed token it already caches,
- * the server verifies the HMAC and derives event + student from it. No
- * session, no cookie, nothing new to lose — a phone that can show its QR can
- * fetch its progress, and nobody can fetch someone else's without their
- * token, which is exactly the same trust boundary as the QR itself.
+ * Auth is the ACCESS token (lib/access-token.js), not the QR. [26/11] The QR
+ * key ships in the PG app's public JavaScript, so a QR proves nothing about
+ * who is asking. The access token is signed with ATL_ACCESS_KEY, which only
+ * this server holds; /dang-ky and the personal email link hand it to the
+ * student. Event + student are derived from it. No session, no cookie.
  *
  * Stock: v1 giấu số chính xác (chỉ ok/low/out) để tránh cãi nhau ở quầy.
  * 09/09 chủ dự án đổi chủ đích: quà đặc biệt là MỘT bậc duy nhất và AIM muốn
@@ -20,33 +20,22 @@
  */
 
 import { getDb } from '@atl/db';
-import { verifyToken, importKey } from '@atl/qr-token';
+import { verifyAccess } from '@/lib/access-token';
 import { historyFrom } from '@/lib/experience';
 
 export const dynamic = 'force-dynamic';
 
-const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
-
-let keyPromise;
-function getKey() {
-  if (!keyPromise) {
-    const secret = process.env.ATL_HMAC_KEY;
-    if (!secret && process.env.NODE_ENV === 'production') {
-      throw new Error('ATL_HMAC_KEY is required in production');
-    }
-    keyPromise = importKey(secret || DEV_KEY);
-  }
-  return keyPromise;
-}
-
 export async function GET(request) {
   const token = new URL(request.url).searchParams.get('t') ?? '';
 
-  // verifyToken never throws — it returns { valid, reason } so the PG scanner
-  // can show a distinct state per reason. Same contract here.
-  const claims = await verifyToken(token, await getKey());
+  // verifyAccess never throws — { valid, reason }. A QR token (reason
+  // 'qr_token') is refused like any forgery: that is the whole point.
+  const claims = await verifyAccess(token);
   if (!claims.valid) {
-    return Response.json({ error: 'invalid_token', reason: claims.reason }, { status: 401 });
+    return Response.json(
+      { error: 'invalid_token', reason: claims.reason },
+      { status: 401, headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 
   const db = await getDb();

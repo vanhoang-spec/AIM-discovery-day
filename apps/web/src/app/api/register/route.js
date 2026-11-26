@@ -4,7 +4,9 @@
  * All correctness lives in the database function `register_student` (dedupe,
  * consent stamping, outbox). This layer only validates shape, normalises, and
  * translates the result into what the success screen needs: the token and the
- * pre-rendered QR SVG the client will cache.
+ * pre-rendered QR SVG the client will cache, plus the ACCESS token (26/11,
+ * lib/access-token.js) that /toi and /khao-sat use to read this student's
+ * data. The QR token alone no longer opens anything: its key is public on PG.
  *
  * A retried submit (flaky network, double tap) returns `already_registered`
  * with the SAME code and QR — the resend flow and the duplicate-protection
@@ -13,6 +15,7 @@
 
 import { getDb } from '@atl/db';
 import { issueQr } from '@/lib/qr';
+import { issueAccessToken } from '@/lib/access-token';
 import { searchKey } from '@atl/vn-text';
 import { EVENT_NOT_ARCHIVED } from '@/lib/event-visibility';
 
@@ -113,10 +116,9 @@ export async function POST(request) {
     );
   }
 
-  const { token, svg } = await issueQr({
-    eventInstance: eventId,
-    studentSeq: row.seq,
-  });
+  const who = { eventInstance: eventId, studentSeq: row.seq };
+  const { token, svg } = await issueQr(who);
+  const access = await issueAccessToken(who);
 
   return Response.json({
     status: row.status, // created | already_registered | linked
@@ -125,6 +127,7 @@ export async function POST(request) {
     lookup_code: row.lookup_code,
     token,
     qr_svg: svg,
+    access,
     full_name: fullName,
     event_id: eventId,
   });

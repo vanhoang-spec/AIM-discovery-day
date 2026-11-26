@@ -15,6 +15,9 @@
  * The sponsor's brand shows as ONE accent colour on our layout. Their hex is
  * used only where accents go; text and grounds stay ours — a sponsor colour
  * must never make the form unreadable.
+ *
+ * [26/11] Gọi API bằng mã truy cập trong thẻ (`pass.access`), không bằng mã QR.
+ * Thẻ lưu trước 26/11 không có mã này: hiện lời nhắc lấy mã mới thay vì danh sách.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -90,6 +93,7 @@ export default function SurveyPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [complete, setComplete] = useState(null); // {survey, badge_status}
+  const [accessRefused, setAccessRefused] = useState(false);
 
   useEffect(() => {
     try {
@@ -98,15 +102,16 @@ export default function SurveyPage() {
     } catch { setPass(null); }
   }, []);
 
-  const load = useCallback(async (token) => {
+  const load = useCallback(async (access) => {
     try {
-      const res = await fetch(`/api/khao-sat?t=${encodeURIComponent(token)}`);
+      const res = await fetch(`/api/khao-sat?t=${encodeURIComponent(access)}`);
+      if (res.status === 401) setAccessRefused(true);
       if (res.ok) setSurveys((await res.json()).surveys);
       else setSurveys([]);
     } catch { setSurveys([]); }
   }, []);
 
-  useEffect(() => { if (pass?.token) load(pass.token); }, [pass, load]);
+  useEffect(() => { if (pass?.access) load(pass.access); }, [pass, load]);
 
   const begin = (sv) => {
     setOpen(sv);
@@ -122,7 +127,7 @@ export default function SurveyPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          t: pass.token, survey_id: open.id,
+          t: pass.access, survey_id: open.id,
           response_uid: attemptUid, answers,
         }),
       });
@@ -130,7 +135,7 @@ export default function SurveyPage() {
       if (!res.ok) { setErr(data.error); return; }
       setComplete({ survey: open, badge_status: data.badge_status, status: data.status });
       setOpen(null);
-      load(pass.token);
+      load(pass.access);
     } catch {
       setErr('Mạng đang yếu — bấm gửi lại, câu trả lời không bị nhân đôi.');
     } finally {
@@ -145,6 +150,19 @@ export default function SurveyPage() {
         <h1>Cần mã tham dự</h1>
         <p className="sub">Mở trang này trên đúng điện thoại đã đăng ký, hoặc lấy lại mã trước.</p>
         <a href="/dang-ky"><button className="primary" type="button">Lấy mã QR của mình</button></a>
+      </main>
+    );
+  }
+  if (!pass.access || accessRefused) {
+    return (
+      <main className="wrap">
+        <h1>Cần lấy mã mới</h1>
+        <p className="sub">
+          Thẻ trên máy này lưu từ trước bản cập nhật bảo mật tháng 11/2026. Mã QR vẫn quét
+          bình thường; để làm khảo sát, mở link trong email mới nhất của ban tổ chức
+          hoặc lấy lại mã bằng email / SĐT đã đăng ký.
+        </p>
+        <a href="/dang-ky"><button className="primary" type="button">Lấy lại mã</button></a>
       </main>
     );
   }

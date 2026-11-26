@@ -1,9 +1,10 @@
 /**
- * Sponsor surveys, student side. Auth is the QR token — same trust boundary
- * as /api/toi: the phone that can show its QR can answer surveys as itself,
- * and nobody can answer as someone else without their token.
+ * Sponsor surveys, student side. Auth is the ACCESS token — same as /api/toi
+ * (lib/access-token.js, 26/11). Not the QR: its key ships in the PG app's
+ * public JavaScript, and a forged QR here would both read someone's badge
+ * count and award badges in their name.
  *
- * GET  ?t=<token>            → active surveys for MY event + which I've done
+ * GET  ?t=<access token>     → active surveys for MY event + which I've done
  * POST {t, survey_id, response_uid, answers}
  *
  * Answers are validated against the survey's CURRENT questions server-side —
@@ -12,25 +13,12 @@
  */
 
 import { getDb } from '@atl/db';
-import { verifyToken, importKey } from '@atl/qr-token';
+import { verifyAccess } from '@/lib/access-token';
 
 export const dynamic = 'force-dynamic';
 
-const DEV_KEY = 'atl2026-dev-key-do-not-use-in-production';
-let keyPromise;
-function getKey() {
-  if (!keyPromise) {
-    const secret = process.env.ATL_HMAC_KEY;
-    if (!secret && process.env.NODE_ENV === 'production') {
-      throw new Error('ATL_HMAC_KEY is required in production');
-    }
-    keyPromise = importKey(secret || DEV_KEY);
-  }
-  return keyPromise;
-}
-
 async function resolveStudent(token, db) {
-  const claims = await verifyToken(token, await getKey());
+  const claims = await verifyAccess(token);
   if (!claims.valid) return { error: 'invalid_token', status: 401 };
   const student = (await db.query(
     `select s.id from students s

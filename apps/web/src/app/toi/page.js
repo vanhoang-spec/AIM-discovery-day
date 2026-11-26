@@ -10,7 +10,11 @@
  * snapshot it managed to fetch, stamped with its time.
  *
  * Progress polls foreground-only every 30s (paused when the tab is hidden),
- * authenticated by the QR token itself. The numbers come from the PG's scan
+ * authenticated by the ACCESS token in the pass (`pass.access`, 26/11) — not
+ * the QR token, whose key is public on the PG app. A pass saved before 26/11
+ * has no access token: its QR still renders offline exactly as before, only
+ * the progress part asks the student to reopen the email link / lấy lại mã.
+ * The numbers come from the PG's scan
  * reaching the server, so the copy never promises instant: it shows
  * "Cập nhật HH:MM" instead — a stale number WITH a timestamp is information,
  * a stale number without one is an argument at the gift desk.
@@ -176,10 +180,29 @@ function ExperienceLog({ history }) {
   );
 }
 
+/**
+ * [26/11] Thẻ không có mã truy cập (lưu trước bản vá bảo mật), hoặc mã truy cập
+ * bị server từ chối: mã QR phía trên vẫn dùng bình thường, chỉ phần điểm cần
+ * mã mới. Nói đúng việc cần làm, không để màn hình trắng.
+ */
+function NeedAccess() {
+  return (
+    <section className="progress" aria-label="Tiến độ badge">
+      <p className="progress-next">
+        Mã QR phía trên vẫn quét bình thường. Để xem điểm trên máy này, mở link
+        trong email mới nhất của ban tổ chức, hoặc{' '}
+        <a href="/dang-ky" style={{ color: 'var(--accent)' }}>lấy lại mã</a> bằng
+        email / SĐT đã đăng ký.
+      </p>
+    </section>
+  );
+}
+
 export default function MyQrPage() {
   const [pass, setPass] = useState(undefined); // undefined = loading, null = none
   const [progress, setProgress] = useState(null);
-  const [linkFailed, setLinkFailed] = useState(false);
+  const [linkFailed, setLinkFailed] = useState(null); // null | 'old_link' | 'failed'
+  const [accessRefused, setAccessRefused] = useState(false);
   const timer = useRef(null);
 
   useEffect(() => {
@@ -194,13 +217,15 @@ export default function MyQrPage() {
       local = null;
     }
 
-    // [14/11] Link riêng trong email (/toi#t=<mã QR>): đổi mã lấy thẻ rồi lưu
+    // [14/11] Link riêng trong email (/toi#t=<mã>): đổi mã lấy thẻ rồi lưu
     // như lúc vừa đăng ký — SV khỏi điền lại form mới xem được điểm.
+    // [26/11] Mã trong link là mã truy cập. Link thư cũ mang mã QR: nếu máy đã
+    // có đúng thẻ đó thì dùng thẻ trong máy, khỏi gọi mạng.
     const linkToken = tokenFromLocation(window.location.hash, window.location.search);
     const clearLink = () => {
       try { window.history.replaceState(null, '', window.location.pathname); } catch {}
     };
-    if (!linkToken || local?.token === linkToken) {
+    if (!linkToken || local?.access === linkToken || local?.token === linkToken) {
       if (linkToken) clearLink();
       setPass(local);
       if (localProgress) setProgress(localProgress);
@@ -211,11 +236,15 @@ export default function MyQrPage() {
     (async () => {
       try {
         const res = await fetch(`/api/toi/pass?t=${encodeURIComponent(linkToken)}`);
-        if (!res.ok) throw new Error(`pass ${res.status}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw Object.assign(new Error(`pass ${res.status}`), { reason: body.reason });
+        }
         const data = await res.json();
         const fresh = {
           token: data.token,
           qr_svg: data.qr_svg,
+          access: data.access,
           lookup_code: data.lookup_code,
           full_name: data.full_name,
           event_id: data.event_id,
@@ -227,10 +256,13 @@ export default function MyQrPage() {
         } catch {}
         clearLink();
         if (!cancelled) setPass(fresh);
-      } catch {
-        // Giữ #t= trên thanh địa chỉ: tải lại trang là thử lại được.
+      } catch (err) {
+        // Giữ #t= trên thanh địa chỉ: tải lại trang là thử lại được — trừ link
+        // thư cũ mang mã QR, tải lại bao nhiêu lần cũng không mở được.
         if (!cancelled) {
-          setLinkFailed(true);
+          const oldLink = err?.reason === 'qr_token';
+          if (oldLink) clearLink();
+          setLinkFailed(oldLink ? 'old_link' : 'failed');
           setPass(local);
           if (local && localProgress) setProgress(localProgress);
         }
@@ -239,9 +271,16 @@ export default function MyQrPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const refresh = useCallback(async (token) => {
+  const refresh = useCallback(async (access) => {
     try {
-      const res = await fetch(`/api/toi?t=${encodeURIComponent(token)}`);
+      const res = await fetch(`/api/toi?t=${encodeURIComponent(access)}`);
+      // 401 = mã truy cập không còn được nhận (vd. BTC đổi ATL_ACCESS_KEY):
+      // thăm dò tiếp vô ích, báo SV lấy mã mới.
+      if (res.status === 401) {
+        setAccessRefused(true);
+        clearInterval(timer.current);
+        return;
+      }
       if (!res.ok) return;
       const data = await res.json();
       setProgress(data);
@@ -255,11 +294,11 @@ export default function MyQrPage() {
   // return to the tab. Hidden tabs stop entirely — 1.500 idle phones must
   // not keep a heartbeat against the origin.
   useEffect(() => {
-    if (!pass?.token) return;
+    if (!pass?.access) return;
     const start = () => {
-      refresh(pass.token);
+      refresh(pass.access);
       clearInterval(timer.current);
-      timer.current = setInterval(() => refresh(pass.token), POLL_MS);
+      timer.current = setInterval(() => refresh(pass.access), POLL_MS);
     };
     const onVis = () => {
       if (document.hidden) clearInterval(timer.current);
@@ -283,6 +322,20 @@ export default function MyQrPage() {
   }, [pass]);
 
   if (pass === undefined) return null;
+
+  if (pass === null && linkFailed === 'old_link') {
+    return (
+      <main className="wrap">
+        <h1>Link này là bản cũ</h1>
+        <p className="sub">
+          Link trong các email gửi trước bản cập nhật bảo mật tháng 11/2026 không
+          còn mở được trang điểm. Lấy lại mã bằng email hoặc SĐT đã đăng ký — mã QR
+          của bạn vẫn giữ nguyên, không tạo bản trùng.
+        </p>
+        <a href="/dang-ky"><button className="primary" type="button">Lấy mã QR của mình</button></a>
+      </main>
+    );
+  }
 
   if (pass === null && linkFailed) {
     return (
@@ -328,6 +381,7 @@ export default function MyQrPage() {
       </p>
 
       <Progress p={progress} />
+      {(!pass.access || accessRefused) && <NeedAccess />}
 
       <p className="muted" style={{ textAlign: 'center' }}>
         Mã QR hoạt động cả khi không có mạng.
