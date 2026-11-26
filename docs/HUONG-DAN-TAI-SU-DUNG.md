@@ -360,6 +360,18 @@ không tick sẵn; thẻ QR nền trắng kể cả ở chế độ tối.
 
 ## 3. Hạ tầng tại ngày bàn giao và quyền sở hữu
 
+> **Trạng thái 26/11/2026: production ĐÃ TẮT** (chủ dự án quyết định sau khi lưu trữ xong dữ liệu và mã nguồn).
+> - 2 project Vercel `atl2026-web`, `atl2026-pg`: **Paused** — trang trả lỗi 503. Bật lại: Vercel → project → Settings →
+>   *Resume Project* (không cần deploy lại).
+> - Supabase `atl2026-production`: **Paused** — bật lại trong vòng 1 năm bằng *Resume project*; sau đó vẫn tải được bản sao lưu.
+> - **Đã xoá:** token Vercel `atl2026-deploy`; 4 secret GitHub Actions (`VERCEL_TOKEN`, `VERCEL_ORG_ID`,
+>   `VERCEL_PROJECT_ID_WEB`, `VERCEL_PROJECT_ID_PG`) → workflow deploy không chạy được cho tới khi tạo lại (mục 4);
+>   khoá Resend `atl2026-discovery-day` (tài khoản Resend dùng chung với dự án khác, chỉ xoá khoá của ATL).
+> - Bản vá bảo mật 26/11 (migration 0017, `ATL_ACCESS_KEY`, `CRON_SECRET` bắt buộc) **có trong mã nguồn nhưng chưa áp lên
+>   production đang tạm dừng**. Bật lại production thì làm đúng thứ tự ở mục 9 TRƯỚC khi mở cho người dùng.
+>
+> Bảng dưới mô tả hạ tầng như lúc còn chạy (dùng khi bật lại hoặc dựng mới).
+
 ### 3.1 Dịch vụ đang chạy
 
 | Thành phần | Ở đâu | Chủ hiện tại | Ghi chú |
@@ -1118,6 +1130,9 @@ outbox dừng (503) mà không tiêu lượt thử của thư — thêm biến r
 **Giới hạn đã biết**
 
 1. Trang quản trị dùng một mã chung, không có tài khoản từng người.
+1b. **Nên sửa trước khi dùng lại:** `/api/register` gộp hồ sơ theo email **hoặc** SĐT và trả lại mã (kể cả mã truy cập) cho người
+   nhập trùng một trong hai — ai biết SĐT của một SV có thể lấy được họ tên và điểm của SV đó. Hướng sửa: với kết quả
+   `already_registered` / `linked`, không trả mã trên màn hình mà chỉ gửi lại qua email đã đăng ký.
 2. Một khoá ký QR cho mọi sự kiện, và khoá đó công khai trong app PG (mục 9): từ 26/11 nó chỉ dùng để quét, không mở được dữ
    liệu của ai, nhưng ai có nó vẫn tạo được mã QR quét được ở booth. `events.token_key_id` chưa được dùng.
 3. Không có công cụ nhập danh sách sinh viên hàng loạt trong kho mã. Đợt 07–11/09/2026 nhập bằng script viết riêng (`convert.mjs`, nằm

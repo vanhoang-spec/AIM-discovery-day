@@ -8,9 +8,18 @@ File này để mở lại công việc từ máy khác (điện thoại, máy k
 
 ---
 
-## CHỜ ÁP PRODUCTION (26/11/2026) — vá 3 lỗ hổng bảo mật, nhánh `fix/bao-mat-3-diem`
+## PRODUCTION ĐÃ TẮT (26/11/2026)
 
-Đã sửa trong code (chưa push, chưa deploy, chưa áp gì lên Supabase): (1) `/api/toi`, `/api/toi/pass`, `/api/khao-sat`
+Chủ quyết định tắt hẳn sau khi giao gói dữ liệu + mã nguồn. Vercel `atl2026-web` / `atl2026-pg`: **Paused** (503);
+Supabase `atl2026-production`: **Paused** (resume được trong 1 năm). **Đã xoá:** token Vercel `atl2026-deploy`, 4 secret
+GitHub (`VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_WEB`, `VERCEL_PROJECT_ID_PG` — workflow deploy không chạy được),
+khoá Resend `atl2026-discovery-day` (Resend dùng chung với on-luyen, hospitality, vam-os, embassy-crm — giữ nguyên).
+Gói bàn giao mã nguồn: `D:\AI_App_Embassy\AIM Academy\ATL2026-ban-giao-ma-nguon-2026-11-26\` (dựng lại sau bản vá).
+Bật lại = Resume cả 3 + tạo lại token/secret/khoá Resend + làm bước "áp production" dưới đây trước khi mở cho SV.
+
+## Vá 3 lỗ hổng bảo mật (26/11/2026) — đã merge vào `main`, CHƯA áp lên production (đang tắt)
+
+Đã sửa trong code: (1) `/api/toi`, `/api/toi/pass`, `/api/khao-sat`
 và link riêng trong thư giờ dùng **mã truy cập SV** (26 ký tự, khoá mới `ATL_ACCESS_KEY` chỉ ở server web —
 `apps/web/src/lib/access-token.js`), không còn dùng mã QR vì khoá QR công khai trong JS của app PG; mã QR giữ nguyên
 định dạng, app PG không đổi. Thẻ cũ trên máy SV vẫn hiện mã QR, chỉ phần điểm báo "mở link thư mới / lấy lại mã";
