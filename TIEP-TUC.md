@@ -8,7 +8,29 @@ File này để mở lại công việc từ máy khác (điện thoại, máy k
 
 ---
 
-## ĐANG LÀM DỞ (21/11/2026 00:10) — xuất dữ liệu nghiệm thu cho AIM
+## XONG (26/11/2026) — gói dữ liệu lưu trữ cho AIM
+
+**`D:\AI_App_Embassy\AIM Academy\ATL2026-du-lieu-luu-tru-AIM-2026-11-26.zip`** (2,4 MB, 57 file,
+SHA256 `2853620bbd1ce3defb335f0ed1e6a7a6f3f5989f6d08932034c393465458677c`). Bản giải nén nằm ở
+`ATL2026-du-lieu-2026-11-20\gui-AIM\`: 3 thư mục sự kiện (01 HN, 02 HCM, 04 UEF; mỗi thư mục 17 CSV + 1 xlsx),
+`TONG-HOP-CAC-SU-KIEN.csv`, `DOC-TRUOC.txt`, `SHA256SUMS.txt`. Có họ tên / email / SĐT → chỉ gửi AIM qua
+kênh riêng tư; zip KHÔNG có mật khẩu (máy không có 7-Zip). Đã giải nén thử, 56/56 mã kiểm tra khớp.
+Số dòng 24 bảng đếm lại 26/11 = y hệt 20/11; số chốt khớp: HN 782/342/311 · HCM 1.116/731/627 · UEF 498/474/618.
+
+**Cách lấy dữ liệu không cần mật khẩu DB và không cần hộp Save As** (dùng lại được):
+SQL Editor → dán `phan-1.sql` / `phan-2.sql` → Run → nút *Export* mở bằng JS
+(`dispatchEvent(new PointerEvent('pointerdown',…))`; click thường không mở menu) → bấm menuitem
+**"Copy as CSV"** qua extension (click thật, có user-activation) → PowerShell `Get-Clipboard -Raw` ghi ra
+`bang-tho\goi-phan-1.csv` / `goi-phan-2.csv` (UTF-8 không BOM) → `Set-Clipboard ' '` xoá clipboard (có PII)
+→ `node scripts/export-event-csv.mjs …\bang-tho …\gui-AIM --events=1,2,4`. Zip bằng `tar.exe -a -c -f`
+(Compress-Archive của PowerShell 5.1 ghi đường dẫn bằng `\`, mở trên Mac bị hỏng).
+Phiên Supabase trên Chrome hết hạn sau vài ngày — chủ phải tự đăng nhập lại (GitHub).
+
+Phát hiện khi xuất: UEF **không có thư nhắc 6h nào** trong outbox (`queue_event_reminders` chưa từng chạy) —
+chỉ 498 thư xác nhận; 493/498 SV đăng ký ngay trong ngày 17/11 nên ảnh hưởng nhỏ. UEF có 13 lượt quét
+16/11 (chạy thử máy). Special gift UEF đổi ngưỡng 4 → 3 (16/11) → 2 (17/11 14:23).
+
+### Ghi chép cũ của bước này (20–21/11, giữ để tra)
 
 Chủ muốn: **toàn bộ dữ liệu ra CSV, tách riêng từng sự kiện AIM tổ chức** (HN 12/09, HCM 12/09,
 UEF 17/11 — bỏ event 3 diễn tập) để gửi AIM nghiệm thu. Có thể phiên sau chạy trên tài khoản
